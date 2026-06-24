@@ -1,0 +1,99 @@
+/* Minimal styles for the LogIn component to match the provided design */
+.login-page{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#f4f7fb;
+  padding:48px 0; /* remove left/right padding so background stretches */
+  position:relative;
+}
+.login-card{
+  width:420px; /* restore former fixed width */
+  background:#fff;
+  border:1px solid rgba(0,0,0,0.08);
+  border-radius:4px;
+  box-shadow:0 2px 4px rgba(0,0,0,0.03);
+  padding:28px 30px 22px;
+  box-sizing:border-box;
+  text-align:left;
+  position:relative;
+  margin:0 24px; /* small horizontal margin so it doesn't touch edges on very small screens */
+}
+.card-top{
+  height:6px;
+  background:#8a4b22;
+  border-top-left-radius:4px;
+  border-top-right-radius:4px;
+  position:absolute;
+  top:0; left:0; right:0;
+}
+.brand{
+  margin:18px 0 6px;
+  font-size:22px;
+  color:#0d2235;
+  font-weight:700;
+}
+.subtitle{
+  font-size:11px;
+  color:#7a8a97;
+  letter-spacing:1px;
+  margin-bottom:14px;
+}
+.field-label{
+  font-size:11px;
+  color:#7a8a97;
+  margin-top:12px;
+  margin-bottom:6px;
+  display:block;
+}
+.input-row{
+  display:flex;
+  align-items:center;
+  border:1px solid rgba(13,34,53,0.08);
+  padding:10px 12px;
+  border-radius:4px;
+  background:#fff;
+}
+.input-row + .field-label{margin-top:14px}
+.icon{margin-right:8px; color:#9aa8b4}
+.input-row input{
+  border:0; outline:0; flex:1; font-size:14px; color:#243444;
+}
+.show-btn{background:none;border:0;cursor:pointer;font-size:16px}
+.row-between{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.remember{display:flex;align-items:center;gap:8px;color:#556776;font-size:13px}
+.forgot{color:#e76b1a;font-size:13px;text-decoration:none;background:none;border:0;padding:0;cursor:pointer}
+.primary-btn{
+  margin-top:16px;
+  width:100%;
+  background:#f97316;
+  color:#fff;
+  border:0;
+  padding:14px 18px;
+  border-radius:6px;
+  font-weight:700;
+  font-size:15px;
+  cursor:pointer;
+}
+.divider{border:0;border-top:1px solid #eee;margin:18px 0}
+.footer-note{font-size:12px;color:#98a7b3;text-align:center}
+.footer-icons{display:flex;gap:18px;justify-content:center;margin-top:8px;color:#546b76;font-size:12px}
+.reset-panel{margin-top:14px;padding:14px;border:1px solid rgba(13,34,53,0.08);border-radius:8px;background:#fbfcfe;display:flex;flex-direction:column;gap:10px}
+.reset-title{font-size:13px;font-weight:700;color:#0d2235}
+.reset-form{display:flex;flex-direction:column;gap:8px}
+.reset-form input{border:1px solid rgba(13,34,53,0.08);border-radius:6px;padding:10px 12px;font-size:14px}
+.secondary-btn{background:#fff;border:1px solid rgba(13,34,53,0.12);border-radius:6px;padding:10px 12px;font-weight:700;cursor:pointer}
+.reset-message{font-size:12px;color:#556776}
+
+@media (max-width:480px){
+  .login-card{width:100%;padding:20px}
+}
+
+/* Allow wider layouts on large screens to reduce side whitespace */
+@media (min-width:1200px){
+  /* Remove the large page padding added earlier so card stays the former size
+     but the page background stretches to the edges as requested. */
+  .login-page{padding:48px 0}
+  .login-card{width:420px}
+}

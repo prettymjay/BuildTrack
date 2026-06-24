@@ -1,0 +1,128 @@
+/* Design tokens and shared component styles
+   - Import this file from src/index.css to make variables globally available.
+   - Contains color palette, typography, spacing scale, and common components.
+*/
+
+:root {
+  /* Colors */
+  --color-nav: #081827; /* dark navy */
+  --color-nav-foreground: #dfeff6;
+  --color-bg: #f2f6f8; /* page background */
+  --color-card: #ffffff;
+  --color-text: #243444;
+  --color-muted: #7a8a97;
+  --color-border: #e9eef2;
+  --color-accent: #f97316; /* primary accent / orange */
+  --color-accent-2: #ff8a33; /* lighter accent */
+  --color-success: #1b9b3a;
+  --color-danger: #e04b3b;
+
+  /* Elevation */
+  --shadow-sm: 0 2px 6px rgba(2,6,23,0.06);
+  --shadow-md: 0 6px 14px rgba(2,6,23,0.08);
+
+  /* Typography */
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
+  --text-base: 16px;
+  --text-small: 13px;
+  --heading-lg: 34px;
+  --heading-md: 22px;
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 28px;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+}
+
+/* Base page layout helpers */
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+/* Containers */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-5);
+}
+
+/* Cards */
+.card {
+  background: var(--color-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  padding: var(--space-4);
+}
+
+/* Headings */
+.h1 { font-size: var(--heading-lg); margin: 0 0 var(--space-4); }
+.h2 { font-size: var(--heading-md); margin: 0 0 var(--space-3); }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-primary { background: var(--color-accent); color: #fff; }
+.btn-secondary { background: var(--color-card); color: var(--color-text); border: 1px solid var(--color-border); }
+.btn-ghost { background: transparent; color: var(--color-text); }
+
+/* Form controls */
+.input {
+  display: inline-block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--color-text);
+}
+
+/* Utility text */
+.muted { color: var(--color-muted); font-size: var(--text-small); }
+.text-bold { font-weight: 700; }
+
+/* Progress bar */
+.progress { background: var(--color-border); height: 8px; border-radius: 8px; overflow: hidden; }
+.progress > .bar { height: 100%; background: var(--color-accent); }
+
+/* Table basics */
+.table { width: 100%; border-collapse: collapse; }
+.table thead th { text-align: left; color: var(--color-muted); font-size: var(--text-small); padding: 10px 8px; }
+.table tbody td { padding: 12px 8px; border-top: 1px solid var(--color-border); color: var(--color-text); }
+
+/* Small helpers */
+.tag { background: #f1fbfb; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+
+/* Responsive helpers */
+@media (max-width: 1000px) {
+  .container { padding: 0 12px; }
+}
+
+/* Usage notes:
+ - Use the variables above to style components consistently.
+ - Colors: --color-accent is the primary accent (orange). Use --color-accent-2 as lighter variant.
+ - Typography: use .h1/.h2 and .muted for subtle text.
+ - Buttons: .btn-primary / .btn-secondary / .btn-ghost
+*/
