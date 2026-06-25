@@ -15,7 +15,7 @@ type ReportRow = {
   description: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 const periodLabels = {
   daily: 'Daily',
@@ -23,6 +23,18 @@ const periodLabels = {
   monthly: 'Monthly (Current)',
   quarterly: 'Quarterly',
 } as const;
+
+function formatReportDate(value: string) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString('en-PH', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+  });
+}
 
 function downloadText(filename: string, contents: string) {
   const blob = new Blob([contents], { type: 'text/plain;charset=utf-8' });
@@ -63,13 +75,61 @@ function withinPeriod(date: string, period: keyof typeof periodLabels) {
   return valueQuarter === currentQuarter && value.getFullYear() === now.getFullYear();
 }
 
+function isWithinDateRange(date: string, startDate: string, endDate: string) {
+  if (!date) return false;
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return false;
+
+  if (startDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    if (value < start) {
+      return false;
+    }
+  }
+
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    if (value > end) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function groupLabelForPeriod(value: string, period: keyof typeof periodLabels) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  if (period === 'daily') {
+    return date.toLocaleDateString('en-PH', { month: 'short', day: '2-digit' });
+  }
+
+  if (period === 'weekly') {
+    return `Week of ${date.toLocaleDateString('en-PH', { month: 'short', day: '2-digit' })}`;
+  }
+
+  if (period === 'quarterly') {
+    return `Q${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`;
+  }
+
+  return date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+}
+
 function Reports() {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('monthly');
   const [project, setProject] = useState('All Active Projects');
   const [category, setCategory] = useState('All Categories');
+  const [reportDate, setReportDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null);
+  const isDailyReport = period === 'daily';
 
   useEffect(() => {
     void loadReports();
@@ -106,9 +166,14 @@ function Reports() {
           .includes(normalizedQuery);
       const matchesProject = project === 'All Active Projects' || row.project === project;
       const matchesCategory = category === 'All Categories' || row.category === category;
-      return matchesQuery && matchesProject && matchesCategory && withinPeriod(row.date, period);
+      const matchesExactDate = !isDailyReport || !reportDate || row.date === reportDate;
+      const matchesRange = isDailyReport ? true : isWithinDateRange(row.date, startDate, endDate);
+      const matchesPeriod = isDailyReport
+        ? (!reportDate ? withinPeriod(row.date, period) : true)
+        : (startDate || endDate ? matchesRange : withinPeriod(row.date, period));
+      return matchesQuery && matchesProject && matchesCategory && matchesExactDate && matchesPeriod;
     });
-  }, [category, period, project, query, rows]);
+  }, [category, endDate, isDailyReport, period, project, query, reportDate, rows, startDate]);
 
   const projectOptions = useMemo(() => ['All Active Projects', ...Array.from(new Set(rows.map((row) => row.project))).sort()], [rows]);
   const categoryOptions = useMemo(() => ['All Categories', ...Array.from(new Set(rows.map((row) => row.category))).sort()], [rows]);
@@ -127,6 +192,23 @@ function Reports() {
     const remaining = total - labor - logistics;
     return { total, labor, logistics, remaining };
   }, [categoryTotals, filteredRows]);
+
+  const trendRows = useMemo(() => {
+    const groups = filteredRows.reduce<Record<string, number>>((acc, row) => {
+      const label = reportDate || startDate || endDate
+        ? formatReportDate(row.date)
+        : groupLabelForPeriod(row.date, period);
+      acc[label] = (acc[label] || 0) + row.amount;
+      return acc;
+    }, {});
+
+    const entries = Object.entries(groups).map(([label, amount]) => ({ label, amount }));
+    const max = Math.max(1, ...entries.map((entry) => entry.amount));
+    return entries.map((entry) => ({
+      ...entry,
+      width: Math.max(12, Math.round((entry.amount / max) * 100)),
+    }));
+  }, [endDate, filteredRows, period, reportDate, startDate]);
 
   function handleDownloadAll() {
     const header = ['Date', 'Reference', 'Project', 'Category', 'Amount', 'Status', 'Description'];
@@ -152,41 +234,97 @@ function Reports() {
     downloadText(`report-${row.ref}.csv`, csv);
   }
 
-  function handlePrintView() {
-    if (!selectedReport) return;
-    const reportWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
+  function handlePrintView(report = selectedReport) {
+    if (!report) return;
+    const reportWindow = window.open('', '_blank', 'width=900,height=700');
     if (!reportWindow) return;
+    const periodText = isDailyReport && reportDate
+      ? `Report date: ${formatReportDate(reportDate)}`
+      : !isDailyReport && (startDate || endDate)
+        ? `Range: ${startDate ? formatReportDate(startDate) : 'Beginning'} to ${endDate ? formatReportDate(endDate) : 'Latest'}`
+        : periodLabels[period];
+
+    reportWindow.document.open();
     reportWindow.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Report ${escapeHtml(selectedReport.ref)}</title>
+          <meta charset="utf-8" />
+          <title>Report ${escapeHtml(report.ref)}</title>
           <style>
-            body{font-family:Arial,sans-serif;padding:32px;color:#0f1724}
-            .meta{color:#64748b;margin-bottom:20px}
-            .card{border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin-top:16px}
-            .row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #eef2f7}
+            @page{size:auto;margin:18mm}
+            *{box-sizing:border-box}
+            body{font-family:Inter,Segoe UI,Arial,sans-serif;padding:32px;color:#0f1724;background:#f8fafc}
+            .shell{max-width:860px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:32px}
+            .heading{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:1px solid #eef2f7;padding-bottom:18px}
+            .title{margin:0;font-size:30px;line-height:1.05}
+            .meta{color:#64748b;margin-top:10px;font-size:14px}
+            .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:22px}
+            .summary-card{border:1px solid #e5e7eb;border-radius:14px;padding:16px 18px;background:#fbfdff}
+            .summary-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
+            .summary-value{display:block;margin-top:8px;font-size:22px;font-weight:800;color:#0f1724}
+            .card{border:1px solid #e5e7eb;border-radius:16px;padding:22px;margin-top:18px}
+            .section-title{margin:0 0 10px;font-size:18px}
+            .row{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #eef2f7}
             .row:last-child{border-bottom:0}
-            .label{color:#64748b}
+            .label{color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:.08em}
+            .value{font-weight:700;text-align:right}
+            .description{margin-top:18px;padding:16px 18px;border-radius:14px;background:#f8fafc;color:#334155;line-height:1.6}
+            @media print{
+              body{background:#fff;padding:0}
+              .shell{border:none;border-radius:0;padding:0;max-width:none}
+            }
+            @media (max-width:700px){
+              .summary{grid-template-columns:1fr}
+              .heading,.row{flex-direction:column}
+              .value{text-align:left}
+            }
           </style>
         </head>
         <body>
-          <h1>Financial Report</h1>
-          <div class="meta">${escapeHtml(periodLabels[period])} view</div>
-          <div class="card">
-            <div class="row"><span class="label">Reference</span><strong>${escapeHtml(selectedReport.ref)}</strong></div>
-            <div class="row"><span class="label">Date</span><strong>${escapeHtml(selectedReport.date)}</strong></div>
-            <div class="row"><span class="label">Project</span><strong>${escapeHtml(selectedReport.project)}</strong></div>
-            <div class="row"><span class="label">Category</span><strong>${escapeHtml(selectedReport.category)}</strong></div>
-            <div class="row"><span class="label">Amount</span><strong>${escapeHtml(formatPesoValue(selectedReport.amount))}</strong></div>
-            <div class="row"><span class="label">Status</span><strong>${escapeHtml(selectedReport.status)}</strong></div>
-            <div class="row"><span class="label">Description</span><strong>${escapeHtml(selectedReport.description || '-')}</strong></div>
+          <div class="shell">
+            <div class="heading">
+              <div>
+                <h1 class="title">Financial Report</h1>
+                <div class="meta">ProBuild App financial export</div>
+                <div class="meta">${escapeHtml(periodText)}</div>
+              </div>
+              <div class="meta">Reference ${escapeHtml(report.ref)}</div>
+            </div>
+
+            <div class="summary">
+              <div class="summary-card">
+                <span class="summary-label">Amount</span>
+                <strong class="summary-value">${escapeHtml(formatPesoValue(report.amount))}</strong>
+              </div>
+              <div class="summary-card">
+                <span class="summary-label">Project</span>
+                <strong class="summary-value">${escapeHtml(report.project)}</strong>
+              </div>
+              <div class="summary-card">
+                <span class="summary-label">Status</span>
+                <strong class="summary-value">${escapeHtml(report.status)}</strong>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2 class="section-title">Report Details</h2>
+              <div class="row"><span class="label">Reference</span><span class="value">${escapeHtml(report.ref)}</span></div>
+              <div class="row"><span class="label">Date</span><span class="value">${escapeHtml(formatReportDate(report.date))}</span></div>
+              <div class="row"><span class="label">Project</span><span class="value">${escapeHtml(report.project)}</span></div>
+              <div class="row"><span class="label">Category</span><span class="value">${escapeHtml(report.category)}</span></div>
+              <div class="row"><span class="label">Period</span><span class="value">${escapeHtml(periodText)}</span></div>
+              <div class="description"><strong>Description:</strong> ${escapeHtml(report.description || '-')}</div>
+            </div>
           </div>
         </body>
       </html>
     `);
     reportWindow.document.close();
-    reportWindow.focus();
-    reportWindow.print();
+    window.setTimeout(() => {
+      reportWindow.focus();
+      reportWindow.print();
+    }, 350);
   }
 
   return (
@@ -213,26 +351,79 @@ function Reports() {
         </div>
 
         <div className="filters-row">
-          <select className="filter" value={period} onChange={(event) => setPeriod(event.target.value as typeof period)}>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly (Current)</option>
-            <option value="quarterly">Quarterly</option>
-          </select>
-          <select className="filter" value={project} onChange={(event) => setProject(event.target.value)}>
-            {projectOptions.map((option) => <option key={option}>{option}</option>)}
-          </select>
-          <select className="filter" value={category} onChange={(event) => setCategory(event.target.value)}>
-            {categoryOptions.map((option) => <option key={option}>{option}</option>)}
-          </select>
-          <button className="btn apply" type="button" onClick={loadReports}>Refresh Data</button>
+          <label className="filter-field">
+            <span className="filter-label">Report Type</span>
+            <select className="filter-control" value={period} onChange={(event) => setPeriod(event.target.value as typeof period)}>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly (Current)</option>
+              <option value="quarterly">Quarterly</option>
+            </select>
+          </label>
+          {isDailyReport ? (
+            <label className="filter-field">
+              <span className="filter-label">Report Date</span>
+              <input
+                type="date"
+                className="filter-control date-filter"
+                value={reportDate}
+                onChange={(event) => setReportDate(event.target.value)}
+                aria-label="Pick report date"
+              />
+            </label>
+          ) : null}
+          <label className="filter-field">
+            <span className="filter-label">Project</span>
+            <select className="filter-control" value={project} onChange={(event) => setProject(event.target.value)}>
+              {projectOptions.map((option) => <option key={option}>{option}</option>)}
+            </select>
+          </label>
+          <label className="filter-field">
+            <span className="filter-label">Category</span>
+            <select className="filter-control" value={category} onChange={(event) => setCategory(event.target.value)}>
+              {categoryOptions.map((option) => <option key={option}>{option}</option>)}
+            </select>
+          </label>
+          {!isDailyReport ? (
+            <>
+              <label className="filter-field date-range-field">
+                <span className="filter-label">Start Date</span>
+                <input
+                  type="date"
+                  className="filter-control date-filter"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  aria-label="Start date"
+                />
+              </label>
+              <label className="filter-field date-range-field">
+                <span className="filter-label">End Date</span>
+                <input
+                  type="date"
+                  className="filter-control date-filter"
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  aria-label="End date"
+                />
+              </label>
+            </>
+          ) : null}
+          <div className="filter-actions">
+            <button className="btn clear-filter" type="button" onClick={() => { setReportDate(''); setStartDate(''); setEndDate(''); }}>
+              Clear Dates
+            </button>
+            <button className="btn apply" type="button" onClick={loadReports}>Refresh Data</button>
+            <button className="btn add-primary" type="button" disabled={!selectedReport} onClick={() => { if (selectedReport) { handlePrintView(); } }}>
+              Print Selected
+            </button>
+          </div>
         </div>
 
         <div className="summary-cards">
           <div className="card stat">
             <div className="label">TOTAL LABOR COST</div>
             <div className="value">{formatPesoValue(periodTotals.labor)}</div>
-            <div className="delta">Filtered period</div>
+            <div className="delta">{reportDate || startDate || endDate ? 'Custom date selection' : 'Filtered period'}</div>
           </div>
           <div className="card stat">
             <div className="label">TRANSPORT + FUEL</div>
@@ -248,8 +439,24 @@ function Reports() {
 
         <div className="charts-row">
           <div className="chart card">
-            <div className="card-title">{periodLabels[period]} Expense Trends</div>
-            <div className="chart-placeholder">{filteredRows.length === 0 ? 'No report data yet' : `${filteredRows.length} records in this view`}</div>
+            <div className="card-title">{reportDate || startDate || endDate ? 'Custom Range Expense Trends' : `${periodLabels[period]} Expense Trends`}</div>
+            {trendRows.length === 0 ? (
+              <div className="chart-placeholder">No report data yet</div>
+            ) : (
+              <div className="trend-bars">
+                {trendRows.map((entry) => (
+                  <div key={entry.label} className="trend-row">
+                    <div className="trend-top">
+                      <span className="trend-label">{entry.label}</span>
+                      <span className="trend-value">{formatPesoValue(entry.amount)}</span>
+                    </div>
+                    <div className="trend-track">
+                      <span className="trend-fill" style={{ width: `${entry.width}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="card small-right">
             <div className="card-title">Allocation by Category</div>
@@ -295,6 +502,7 @@ function Reports() {
                   <td><span className={`status ${row.status.toLowerCase().replace(/\s+/g, '-')}`}>{row.status}</span></td>
                   <td className="row-actions">
                     <button type="button" className="row-btn" onClick={() => setSelectedReport(row)}>View</button>
+                    <button type="button" className="row-btn" onClick={() => handlePrintView(row)}>Print</button>
                     <button type="button" className="row-btn secondary" onClick={() => handleDownloadRow(row)}>Download</button>
                   </td>
                 </tr>
@@ -323,7 +531,7 @@ function Reports() {
                 <div><span>Period</span><strong>{periodLabels[period]}</strong></div>
               </div>
               <div className="report-modal-actions">
-                <button type="button" className="btn apply" onClick={handlePrintView}>View / Print</button>
+                <button type="button" className="btn apply" onClick={() => handlePrintView()}>Print Report</button>
                 <button type="button" className="btn add-primary" onClick={() => handleDownloadRow(selectedReport)}>Download CSV</button>
               </div>
             </div>

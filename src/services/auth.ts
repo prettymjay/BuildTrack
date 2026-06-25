@@ -12,7 +12,7 @@ type ResetResult = {
   error?: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 export async function login(username: string, password: string): Promise<LoginResult> {
   try {
@@ -30,7 +30,10 @@ export async function login(username: string, password: string): Promise<LoginRe
     const data = await resp.json();
     return { success: true, token: data.token, user: data.user };
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Unable to reach the server. Check that the API is running.' };
+    return {
+      success: false,
+      error: `Unable to reach the Laravel API at ${API_BASE || '/api'}. Start the Laravel server and confirm VITE_API_BASE is correct.`,
+    };
   }
 }
 
@@ -50,7 +53,10 @@ export async function requestPasswordReset(email: string): Promise<ResetResult> 
     const data = await resp.json();
     return { success: true, message: data.message, expiresInMinutes: data.expiresInMinutes };
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Unable to reach the server. Check that the API is running.' };
+    return {
+      success: false,
+      error: `Unable to reach the Laravel API at ${API_BASE || '/api'}. Start the Laravel server and confirm VITE_API_BASE is correct.`,
+    };
   }
 }
 
@@ -69,7 +75,10 @@ export async function resetPassword(email: string, token: string, password: stri
 
     return { success: true };
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Unable to reach the server. Check that the API is running.' };
+    return {
+      success: false,
+      error: `Unable to reach the Laravel API at ${API_BASE || '/api'}. Start the Laravel server and confirm VITE_API_BASE is correct.`,
+    };
   }
 }
 

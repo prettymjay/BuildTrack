@@ -1,16 +1,32 @@
-.reports-root{padding:28px 34px 40px}
-.reports-header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:22px}
+.reports-root{padding:28px 42px 40px}
+.reports-header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:26px}
 .reports-title{margin:0;font-size:34px;font-family:var(--font-heading);font-weight:800;letter-spacing:-0.04em}
-.reports-sub{color:var(--muted);font-size:15px}
-.reports-actions{display:flex;gap:12px;align-items:center}
-.search-wrap{display:flex;align-items:center;border-radius:14px;overflow:hidden;background:var(--card-bg);border:1px solid var(--border);box-shadow:var(--shadow-sm)}
-.search-input{border:0;padding:12px 14px;min-width:280px;font-size:14px}
+.reports-sub{color:var(--muted);font-size:15px;line-height:1.65;max-width:760px}
+.reports-actions{display:flex;gap:14px;align-items:center;justify-content:flex-end;flex:0 0 auto}
+.search-wrap{display:flex;align-items:center;border-radius:16px;overflow:hidden;background:var(--card-bg);border:1px solid var(--border);box-shadow:var(--shadow-sm);width:min(100%,480px)}
+.search-input{border:0;padding:16px 18px;min-width:360px;font-size:15px;font-family:var(--font-sans);color:var(--text);line-height:1.2}
 .search-input:focus{outline:none}
 .icon-btn.small{background:transparent;border:0;padding:10px 14px;cursor:pointer;font-weight:700;color:var(--muted)}
-.btn.add-primary{background:linear-gradient(180deg,var(--accent-2),var(--accent));color:var(--on-accent);padding:0 16px;border-radius:12px;border:none;font-weight:700;min-height:46px}
-.filters-row{display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
-.filter{padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;min-height:46px;box-shadow:var(--shadow-sm)}
-.btn.apply{background:#132238;color:#fff;padding:0 16px;border-radius:12px;border:0;min-height:46px;font-weight:700}
+.btn.add-primary{background:linear-gradient(180deg,var(--accent-2),var(--accent));color:var(--on-accent);padding:0 20px;border-radius:16px;border:none;font-weight:800;min-height:56px;white-space:nowrap}
+.filters-row{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:22px 24px;align-items:end;margin-bottom:34px}
+.filter-field{display:flex;flex-direction:column;gap:10px;min-width:0}
+.date-range-field{min-width:200px}
+.filter-label{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#64748b;line-height:1.2;padding-left:2px}
+.filter-control{width:100%;box-sizing:border-box;padding:0 18px;border-radius:18px;border:1px solid var(--border);background:#fff;min-height:58px;box-shadow:0 12px 24px rgba(15,23,42,0.05);font-size:15px;font-family:var(--font-sans);font-weight:600;color:var(--text)}
+.filter-control:focus{outline:none;border-color:rgba(249,115,22,0.42);box-shadow:0 18px 34px rgba(249,115,22,0.10)}
+.filter-control[type="date"]{padding-right:18px}
+.date-filter{min-width:0;inline-size:100%;font-variant-numeric:tabular-nums}
+.filters-row .filter-field:nth-child(1){grid-column:span 2}
+.filters-row .filter-field:nth-child(2){grid-column:span 2}
+.filters-row .filter-field:nth-child(3){grid-column:span 2}
+.filters-row .filter-field:nth-child(4){grid-column:span 2}
+.filters-row .filter-field:nth-child(5){grid-column:span 2}
+.filters-row .filter-field:nth-child(6){grid-column:span 2}
+.filters-row .date-range-field{grid-column:span 2}
+.filter-actions{display:flex;gap:14px;align-items:flex-end;grid-column:1 / -1;justify-content:flex-start;flex-wrap:wrap;padding-top:4px}
+.btn.apply{background:#132238;color:#fff;padding:0 18px;border-radius:14px;border:0;min-height:52px;font-weight:800}
+.btn.clear-filter{background:#fff;color:var(--text);padding:0 18px;border-radius:14px;border:1px solid var(--border);min-height:52px;font-weight:800}
+.filter-actions .btn{min-width:166px}
 .summary-cards{display:flex;gap:18px;margin-bottom:20px}
 .card.stat{flex:1;padding:22px;border-radius:18px;background:var(--card-bg);border:1px solid rgba(217,227,238,0.9);box-shadow:var(--shadow-sm)}
 .card.stat .label{font-size:12px;color:var(--muted)}
@@ -22,6 +38,13 @@
 .card.stat.highlight::before{content:'';position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg,#ff8a33,#f97316);border-top-left-radius:12px;border-bottom-left-radius:12px}
 .charts-row{display:grid;grid-template-columns:1fr 320px;gap:16px;margin-bottom:18px}
 .chart-placeholder{height:220px;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#eef4fa);display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600}
+.trend-bars{display:flex;flex-direction:column;gap:16px;margin-top:16px}
+.trend-row{padding:14px 16px;border-radius:16px;background:linear-gradient(180deg,#fbfdff,#f5f9ff);border:1px solid rgba(217,227,238,0.9)}
+.trend-top{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}
+.trend-label{font-weight:800;color:var(--text)}
+.trend-value{font-weight:800;color:var(--text)}
+.trend-track{height:12px;border-radius:999px;background:#e7eef7;overflow:hidden;margin-top:10px}
+.trend-fill{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
 .small-right{padding:12px}
 .alloc-placeholder{display:flex;flex-direction:column;align-items:center;gap:8px}
 .alloc-list{margin-top:12px;width:100%;font-size:14px}
@@ -59,12 +82,20 @@
   .charts-row{grid-template-columns:1fr}
   .reports-actions{flex-direction:column;align-items:flex-end}
   .summary-cards{flex-direction:column}
+  .filters-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .filters-row .filter-field{grid-column:span 1!important}
 }
 
 @media (max-width:700px){
   .reports-root{padding:18px}
-  .search-input{min-width:200px}
+  .reports-header{flex-direction:column;align-items:stretch}
+  .reports-actions{align-items:stretch}
+  .search-wrap{width:100%}
+  .search-input{min-width:0;width:100%}
   .report-modal-grid{grid-template-columns:1fr}
   .report-modal-actions{justify-content:stretch}
   .report-modal-actions .btn,.report-modal-actions .row-btn{width:100%}
+  .filters-row{grid-template-columns:1fr}
+  .filter-actions{flex-direction:column;align-items:stretch}
+  .filter-actions .btn{width:100%}
 }

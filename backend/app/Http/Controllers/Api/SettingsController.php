@@ -82,7 +82,7 @@ class SettingsController extends Controller
         $data = $request->validate([
             'username' => ['required', 'string', Rule::unique('users', 'username')->ignore($user->id)],
             'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => ['nullable', 'string', 'min:8'],
+            'password' => ['nullable', 'string', 'min:3'],
         ]);
 
         $payload = [

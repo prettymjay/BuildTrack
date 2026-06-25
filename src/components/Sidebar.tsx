@@ -13,7 +13,10 @@ export default function Sidebar(){
 
   return (
     <aside className="sidebar">
-      <div className="brand">ProBuild Hardware</div>
+      <div className="brand-wrap">
+        <div className="brand">ProBuild App</div>
+        <div className="brand-sub">Hardware Management System</div>
+      </div>
       <nav>
         <ul>
           <li><NavLink to="/dashboard" className={({isActive}) => isActive ? 'active' : ''}>Dashboard</NavLink></li>

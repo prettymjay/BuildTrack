@@ -51,6 +51,7 @@ class DatabaseSeeder extends Seeder
                 ['name' => $category['name']],
                 [
                     'description' => $category['description'],
+                    'status' => 'Active',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]
@@ -65,7 +66,10 @@ class DatabaseSeeder extends Seeder
             DB::table('system_reference_lists')->updateOrInsert(
                 ['key' => $listKey],
                 [
-                    'items' => json_encode(config("probuild.{$listKey}", []), JSON_UNESCAPED_UNICODE),
+                    'items' => json_encode(array_map(
+                        fn ($name) => ['name' => $name, 'status' => 'Active'],
+                        config("probuild.{$listKey}", [])
+                    ), JSON_UNESCAPED_UNICODE),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]

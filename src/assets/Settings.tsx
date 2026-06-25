@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import './Settings.css';
-import { authFetch } from '../services/auth';
+import { authFetch, logout as clearAuth } from '../services/auth';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -15,12 +15,16 @@ export default function Settings() {
   });
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [backupFileName, setBackupFileName] = useState('');
   const [adminCreds, setAdminCreds] = useState({ username: 'admin', email: '', password: '', confirm: '' });
   const [adminDefaults, setAdminDefaults] = useState({ username: 'admin', email: '' });
   const [credMsg, setCredMsg] = useState<string | null>(null);
   const [credBusy, setCredBusy] = useState(false);
   const [companyMsg, setCompanyMsg] = useState<string | null>(null);
   const [companyBusy, setCompanyBusy] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const backupInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -132,7 +136,7 @@ export default function Settings() {
       const blob = await response.blob();
       const contentDisposition = response.headers.get('content-disposition') || '';
       const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
-      const filename = filenameMatch?.[1] || 'latest-backup.db';
+      const filename = filenameMatch?.[1] || 'latest-backup.json';
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = objectUrl;
@@ -167,10 +171,57 @@ export default function Settings() {
     }
   }
 
+  async function handleRestoreBackup() {
+    const file = backupInputRef.current?.files?.[0];
+    if (!file) {
+      setBackupStatus('Choose a backup file before restoring.');
+      return;
+    }
+
+    setBackupBusy(true);
+    setBackupStatus(`Uploading ${file.name}...`);
+
+    try {
+      const formData = new FormData();
+      formData.append('backup_file', file);
+
+      const response = await authFetch(`${API_BASE}/api/backup/restore`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        setBackupStatus(await readErrorMessage(response));
+        return;
+      }
+
+      const data = await response.json();
+      setBackupStatus(`${data.message} Log in again to continue with the restored data.`);
+      setBackupFileName('');
+      if (backupInputRef.current) {
+        backupInputRef.current.value = '';
+      }
+
+      clearAuth();
+      window.setTimeout(() => {
+        window.location.href = '/login';
+      }, 1200);
+    } catch {
+      setBackupStatus('Unable to restore backup');
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
   async function handleSaveCredentials() {
     setCredMsg(null);
     if (!adminCreds.email.trim()) {
       setCredMsg('Recovery Gmail is required');
+      return;
+    }
+
+    if (adminCreds.password && adminCreds.password.length < 3) {
+      setCredMsg('New password must be at least 3 characters');
       return;
     }
 
@@ -192,9 +243,11 @@ export default function Settings() {
       });
 
       if (response.ok) {
-        setCredMsg('Account settings updated');
+        setCredMsg('Account settings updated in the local database');
         setAdminDefaults({ username: adminCreds.username, email: adminCreds.email });
         setAdminCreds((current) => ({ ...current, password: '', confirm: '' }));
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
       } else {
         setCredMsg(await readErrorMessage(response));
       }
@@ -238,104 +291,180 @@ export default function Settings() {
 
         <div className="settings-card card">
           <div className="tabs">
-            <button className={`tab ${activeTab==='profile'?'active':''}`} onClick={()=>setActiveTab('profile')}>Company Profile</button>
-            <button className={`tab ${activeTab==='users'?'active':''}`} onClick={()=>setActiveTab('users')}>User Management</button>
-            <button className={`tab ${activeTab==='security'?'active':''}`} onClick={()=>setActiveTab('security')}>System & Security</button>
+            <button className={`tab ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>Company Profile</button>
+            <button className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>User Management</button>
+            <button className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>System & Security</button>
           </div>
 
           {activeTab === 'profile' && (
-            <div className="profile-grid">
-              <div className="branding">
-                <div className="branding-title">Corporate Branding</div>
-                <div className="branding-sub">This logo will appear on all generated invoices, reports, and purchase orders.</div>
-                <div className="upload-box"> 
-                  <div className="upload-icon">📎</div>
-                  <div className="upload-text">Upload Company Logo<br/><span className="muted">PNG, JPG up to 5MB</span></div>
+            <section className="settings-section">
+              <div className="section-head">
+                <div>
+                  <div className="section-kicker">Brand Identity</div>
+                  <h3>Company Profile</h3>
                 </div>
+                <p>Keep your branding and contact information consistent across invoices, reports, and procurement documents.</p>
               </div>
 
-              <div className="company-form">
-                <label>Company Name
-                  <input value={company.name} onChange={e=>setCompany({...company, name:e.target.value})} />
-                </label>
-                <label>Registered Address
-                  <textarea value={company.address} onChange={e=>setCompany({...company, address:e.target.value})} rows={4} />
-                </label>
-
-                <div className="row">
-                  <label>Contact Number
-                    <input value={company.contact} onChange={e=>setCompany({...company, contact:e.target.value})} />
-                  </label>
-                  <label>Email Address
-                    <input value={company.email} onChange={e=>setCompany({...company, email:e.target.value})} />
-                  </label>
+              <div className="profile-grid">
+                <div className="branding panel-surface">
+                  <div className="branding-title">Corporate Branding</div>
+                  <div className="branding-sub">This logo will appear on all generated invoices, reports, and purchase orders.</div>
+                  <div className="upload-box">
+                    <div className="upload-icon" aria-hidden="true">+</div>
+                    <div className="upload-text">Upload Company Logo<br /><span className="muted">PNG, JPG up to 5MB</span></div>
+                  </div>
                 </div>
 
-                <div className="actions">
-                  <button className="btn btn-primary" type="button" onClick={handleSaveCompany} disabled={companyBusy}>
-                    {companyBusy ? 'Saving...' : 'Save Changes'}
-                  </button>
+                <div className="company-form panel-surface">
+                  <label>Company Name
+                    <input value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} />
+                  </label>
+                  <label>Registered Address
+                    <textarea value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} rows={4} />
+                  </label>
+
+                  <div className="row">
+                    <label>Contact Number
+                      <input value={company.contact} onChange={(e) => setCompany({ ...company, contact: e.target.value })} />
+                    </label>
+                    <label>Email Address
+                      <input value={company.email} onChange={(e) => setCompany({ ...company, email: e.target.value })} />
+                    </label>
+                  </div>
+
+                  <div className="actions">
+                    <button className="btn btn-primary" type="button" onClick={handleSaveCompany} disabled={companyBusy}>
+                      {companyBusy ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                  {companyMsg && <div className="settings-message">{companyMsg}</div>}
                 </div>
-                {companyMsg && <div className="muted" style={{marginTop:8}}>{companyMsg}</div>}
               </div>
-            </div>
+            </section>
           )}
 
           {activeTab === 'users' && (
-            <div className="users-panel">
-              <h3>Admin Credentials</h3>
-              <div className="admin-form">
-                <label>Username
-                  <input value={adminCreds.username} onChange={e=>setAdminCreds({...adminCreds, username: e.target.value})} />
-                </label>
-                <label>Recovery Gmail
-                  <input type="email" value={adminCreds.email} onChange={e=>setAdminCreds({...adminCreds, email: e.target.value})} placeholder="yourname@gmail.com" />
-                </label>
-                <label>New Password
-                  <input type="password" value={adminCreds.password} onChange={e=>setAdminCreds({...adminCreds, password: e.target.value})} />
-                </label>
-                <label>Confirm Password
-                  <input type="password" value={adminCreds.confirm} onChange={e=>setAdminCreds({...adminCreds, confirm: e.target.value})} />
-                </label>
-                <div className="settings-actions">
-                  <button className="btn btn-secondary" type="button" onClick={()=>{
-                    setAdminCreds({
-                      username: adminDefaults.username,
-                      email: adminDefaults.email,
-                      password: '',
-                      confirm: '',
-                    });
-                    setCredMsg(null);
-                  }}>Reset</button>
-                  <button className="btn btn-primary" type="button" onClick={handleSaveCredentials} disabled={credBusy}>{credBusy ? 'Saving...' : 'Save Credentials'}</button>
+            <section className="settings-section">
+              <div className="section-head">
+                <div>
+                  <div className="section-kicker">Access Control</div>
+                  <h3>Admin Credentials</h3>
                 </div>
-                <div className="muted" style={{marginTop:8}}>The Gmail saved here will receive username reminders and password reset codes.</div>
-                {credMsg && <div className="muted" style={{marginTop:8}}>{credMsg}</div>}
+                <p>Update the sign-in identity and recovery address used for secure access and password reset delivery.</p>
               </div>
-            </div>
+
+              <div className="users-panel panel-surface">
+                <div className="admin-form">
+                  <label>Username
+                    <input value={adminCreds.username} onChange={(e) => setAdminCreds({ ...adminCreds, username: e.target.value })} />
+                  </label>
+                  <label>Recovery Gmail
+                    <input type="email" value={adminCreds.email} onChange={(e) => setAdminCreds({ ...adminCreds, email: e.target.value })} placeholder="yourname@gmail.com" />
+                  </label>
+                  <label>New Password
+                    <div className="password-field">
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={adminCreds.password}
+                        onChange={(e) => setAdminCreds({ ...adminCreds, password: e.target.value })}
+                      />
+                      <button
+                        className="password-toggle"
+                        type="button"
+                        onClick={() => setShowNewPassword((current) => !current)}
+                      >
+                        {showNewPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                  </label>
+                  <label>Confirm Password
+                    <div className="password-field">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={adminCreds.confirm}
+                        onChange={(e) => setAdminCreds({ ...adminCreds, confirm: e.target.value })}
+                      />
+                      <button
+                        className="password-toggle"
+                        type="button"
+                        onClick={() => setShowConfirmPassword((current) => !current)}
+                      >
+                        {showConfirmPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                  </label>
+                  <div className="settings-actions">
+                    <button className="btn btn-secondary" type="button" onClick={() => {
+                      setAdminCreds({
+                        username: adminDefaults.username,
+                        email: adminDefaults.email,
+                        password: '',
+                        confirm: '',
+                      });
+                      setShowNewPassword(false);
+                      setShowConfirmPassword(false);
+                      setCredMsg(null);
+                    }}>Reset</button>
+                    <button className="btn btn-primary" type="button" onClick={handleSaveCredentials} disabled={credBusy}>{credBusy ? 'Saving...' : 'Save Credentials'}</button>
+                  </div>
+                  <div className="settings-note">The Gmail saved here will receive username reminders and password reset codes.</div>
+                  {credMsg && <div className="settings-message">{credMsg}</div>}
+                </div>
+              </div>
+            </section>
           )}
 
           {activeTab === 'security' && (
-            <div className="security-panel">
-              <h3>Backup & Maintenance</h3>
-              <div className="backup-box">
-                <div className="backup-copy">
-                  <div className="backup-title">Keep a local database snapshot, download the latest backup, and clear old files.</div>
-                  <div className="backup-sub muted">These actions talk to the server backup endpoints directly.</div>
+            <section className="settings-section">
+              <div className="section-head">
+                <div>
+                  <div className="section-kicker">Operations</div>
+                  <h3>Backup & Maintenance</h3>
                 </div>
-                <div className="backup-actions">
-                  <button className="btn" type="button" onClick={handleCreateBackup} disabled={backupBusy}>Create Backup</button>
-                  <button className="btn" type="button" onClick={handleDownloadLatest} disabled={backupBusy}>Download Latest</button>
-                  <button className="btn" type="button" onClick={handleCleanup} disabled={backupBusy}>Run Cleanup</button>
-                </div>
-                {backupStatus && <div className="muted" style={{marginTop:8}}>{backupStatus}</div>}
+                <p>Protect local data with snapshot tools and recovery options built for offline-first day-to-day operation.</p>
               </div>
-            </div>
+
+              <div className="security-panel panel-surface">
+                <div className="backup-box">
+                  <div className="backup-copy">
+                    <div className="backup-title">Keep a local database snapshot, download the latest backup, and clear old files.</div>
+                    <div className="backup-sub muted">These actions talk to the server backup endpoints directly.</div>
+                  </div>
+                  <div className="backup-actions">
+                    <button className="btn" type="button" onClick={handleCreateBackup} disabled={backupBusy}>Create Backup</button>
+                    <button className="btn" type="button" onClick={handleDownloadLatest} disabled={backupBusy}>Download Latest</button>
+                    <button className="btn" type="button" onClick={handleCleanup} disabled={backupBusy}>Run Cleanup</button>
+                  </div>
+                  <div className="backup-restore-box">
+                    <div className="backup-restore-copy">
+                      <div className="backup-title">Restore From Backup</div>
+                      <div className="backup-sub muted">Upload the latest JSON backup to rebuild the app state after a crash or device change.</div>
+                    </div>
+                    <div className="backup-restore-controls">
+                      <label className="backup-upload-field">
+                        <span>{backupFileName || 'Choose backup file (.json)'}</span>
+                        <input
+                          ref={backupInputRef}
+                          type="file"
+                          accept=".json,application/json,text/plain"
+                          onChange={(event) => setBackupFileName(event.target.files?.[0]?.name || '')}
+                        />
+                      </label>
+                      <button className="btn btn-primary" type="button" onClick={handleRestoreBackup} disabled={backupBusy}>
+                        {backupBusy ? 'Processing...' : 'Upload Backup'}
+                      </button>
+                    </div>
+                  </div>
+                  {backupStatus && <div className="settings-message">{backupStatus}</div>}
+                </div>
+              </div>
+            </section>
           )}
         </div>
 
         <footer className="settings-foot muted">SYSTEM BUILD V4.2.1-STABLE</footer>
       </main>
     </>
-  )
+  );
 }

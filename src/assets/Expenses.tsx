@@ -17,7 +17,12 @@ type Expense = {
 
 type ExpenseForm = Omit<Expense, 'id'>;
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+type ProjectOption = {
+  id: number;
+  title: string;
+};
+
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 const blankExpense: ExpenseForm = {
   date: '',
@@ -30,6 +35,7 @@ const blankExpense: ExpenseForm = {
 
 export default function Expenses() {
   const [items, setItems] = useState<Expense[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [date, setDate] = useState('');
   const [project, setProject] = useState('All Projects');
   const [category, setCategory] = useState('All Categories');
@@ -50,12 +56,32 @@ export default function Expenses() {
 
   useEffect(() => {
     void loadSystemOptions();
+    void loadProjects();
   }, []);
 
   async function loadSystemOptions() {
     const options = await fetchSystemOptions();
     setExpenseCategoryOptions(options.daily_expense_categories);
     setPaymentStatusOptions(options.payment_statuses);
+    setForm((current) => ({
+      ...current,
+      category: current.category || options.daily_expense_categories[0] || '',
+      status: (current.status || options.payment_statuses[0] || 'Unpaid') as Expense['status'],
+    }));
+  }
+
+  async function loadProjects() {
+    try {
+      const response = await authFetch(`${API_BASE}/api/projects?page=1&perPage=500`);
+      if (!response.ok) {
+        return;
+      }
+
+      const json = await response.json();
+      setProjects(json.data || []);
+    } catch (err) {
+      console.error('fetch projects', err);
+    }
   }
 
   async function fetchExpenses() {
@@ -90,12 +116,26 @@ export default function Expenses() {
   }, [items]);
 
   const projectOptions = useMemo(() => {
-    const values = new Set<string>();
+    const values = new Set<string>(projects.map((item) => item.title).filter(Boolean));
     items.forEach((item) => {
       if (item.project) values.add(item.project);
     });
     return ['All Projects', ...Array.from(values).sort()];
-  }, [items]);
+  }, [items, projects]);
+
+  const expenseProjectOptions = useMemo(
+    () => Array.from(new Set(projects.map((item) => item.title).filter(Boolean))).sort(),
+    [projects],
+  );
+
+  function getDefaultExpenseForm() {
+    return {
+      ...blankExpense,
+      date: new Date().toISOString().slice(0, 10),
+      category: expenseCategoryOptions[0] || '',
+      status: (paymentStatusOptions[0] as Expense['status']) || 'Unpaid',
+    };
+  }
 
   const categoryOptions = useMemo(() => {
     if (expenseCategoryOptions.length) {
@@ -123,9 +163,13 @@ export default function Expenses() {
         body: JSON.stringify(form),
       });
       if (res.ok) {
-        await fetchExpenses();
+        setPage(1);
+        setDate('');
+        setProject('All Projects');
+        setCategory('All Categories');
         setShowAdd(false);
-        setForm(blankExpense);
+        setForm(getDefaultExpenseForm());
+        await fetchExpenses();
       }
     } catch (err) {
       console.error(err);
@@ -182,7 +226,7 @@ export default function Expenses() {
               <select className="proj-filter" value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }}>
                 {categoryOptions.map((option) => <option key={option}>{option}</option>)}
               </select>
-              <button className="btn add-exp" onClick={() => setShowAdd(true)} type="button">Add Expense</button>
+              <button className="btn add-exp" onClick={() => { setForm(getDefaultExpenseForm()); setShowAdd(true); }} type="button">Add Expense</button>
             </div>
           </div>
 
@@ -269,7 +313,10 @@ export default function Expenses() {
                     <input required type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input" />
                   </label>
                   <label>Project
-                    <input required placeholder="e.g., Skyline Residence Phase 2" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} className="input" />
+                    <select required value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} className="input">
+                      <option value="">Select project</option>
+                      {expenseProjectOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
                   </label>
                   <label>Category
                     <select required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input">
@@ -281,7 +328,11 @@ export default function Expenses() {
                     <input placeholder="e.g., Rebar delivery for Tower B" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input" />
                   </label>
                   <label>Amount (PHP)
-                    <input type="number" step="0.01" placeholder="e.g., 4280.50" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} className="input" />
+                    <div className="expense-input-shell">
+                      <span className="expense-affix">₱</span>
+                      <input type="number" min="0" step="0.01" placeholder="e.g., 4280.50" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} className="input amount-input" />
+                    </div>
+                    <span className="field-note">{formatPesoValue(Number(form.amount) || 0)}</span>
                   </label>
                   <label>Payment Status
                     <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Expense['status'] })} className="input">
@@ -289,7 +340,7 @@ export default function Expenses() {
                     </select>
                   </label>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <button type="button" className="btn btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => { setShowAdd(false); setForm(getDefaultExpenseForm()); }}>Cancel</button>
                     <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Create'}</button>
                   </div>
                 </form>
@@ -306,7 +357,10 @@ export default function Expenses() {
                     <input required type="date" value={editItem.date || ''} onChange={(e) => setEditItem({ ...editItem, date: e.target.value })} className="input" />
                   </label>
                   <label>Project
-                    <input required value={editItem.project || ''} onChange={(e) => setEditItem({ ...editItem, project: e.target.value })} className="input" />
+                    <select required value={editItem.project || ''} onChange={(e) => setEditItem({ ...editItem, project: e.target.value })} className="input">
+                      <option value="">Select project</option>
+                      {expenseProjectOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
                   </label>
                   <label>Category
                     <select value={editItem.category || ''} onChange={(e) => setEditItem({ ...editItem, category: e.target.value })} className="input">
@@ -318,7 +372,11 @@ export default function Expenses() {
                     <input value={editItem.description || ''} onChange={(e) => setEditItem({ ...editItem, description: e.target.value })} className="input" />
                   </label>
                   <label>Amount (PHP)
-                    <input type="number" step="0.01" value={editItem.amount || 0} onChange={(e) => setEditItem({ ...editItem, amount: Number(e.target.value) })} className="input" />
+                    <div className="expense-input-shell">
+                      <span className="expense-affix">₱</span>
+                      <input type="number" min="0" step="0.01" value={editItem.amount || 0} onChange={(e) => setEditItem({ ...editItem, amount: Number(e.target.value) })} className="input amount-input" />
+                    </div>
+                    <span className="field-note">{formatPesoValue(Number(editItem.amount) || 0)}</span>
                   </label>
                   <label>Payment Status
                     <select value={editItem.status} onChange={(e) => setEditItem({ ...editItem, status: e.target.value as Expense['status'] })} className="input">

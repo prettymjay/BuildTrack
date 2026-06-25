@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Material;
 use App\Models\Project;
+use App\Models\SystemReferenceList;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -25,11 +28,15 @@ class BackupController extends Controller
     public function store(Request $request): JsonResponse
     {
         $snapshot = [
+            'version' => 2,
             'created_at' => now()->toIso8601String(),
-            'users' => User::query()->get(['id', 'username', 'email', 'name', 'created_at', 'updated_at'])->toArray(),
+            'company_settings' => DB::table('company_settings')->get()->map(fn ($row) => (array) $row)->all(),
+            'users' => DB::table('users')->get()->map(fn ($row) => (array) $row)->all(),
             'projects' => Project::query()->get()->toArray(),
             'materials' => Material::query()->get()->toArray(),
             'expenses' => Expense::query()->get()->toArray(),
+            'categories' => Category::query()->get()->toArray(),
+            'system_reference_lists' => SystemReferenceList::query()->get()->toArray(),
         ];
 
         $filename = 'backup-'.now()->format('Y-m-d_His').'.json';
@@ -73,5 +80,60 @@ class BackupController extends Controller
             'ok' => true,
             'removed' => $removed,
         ]);
+    }
+
+    public function restore(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'backup_file' => ['required', 'file', 'mimes:json,txt'],
+        ]);
+
+        $contents = File::get($data['backup_file']->getRealPath());
+        $snapshot = json_decode($contents, true);
+
+        if (! is_array($snapshot)) {
+            return response()->json(['error' => 'Invalid backup file format.'], 422);
+        }
+
+        foreach (['users', 'projects', 'materials', 'expenses'] as $key) {
+            if (! array_key_exists($key, $snapshot) || ! is_array($snapshot[$key])) {
+                return response()->json(['error' => 'Backup file is missing required data.'], 422);
+            }
+        }
+
+        DB::transaction(function () use ($snapshot): void {
+            DB::table('expenses')->delete();
+            DB::table('materials')->delete();
+            DB::table('projects')->delete();
+            DB::table('categories')->delete();
+            DB::table('system_reference_lists')->delete();
+            DB::table('company_settings')->delete();
+            DB::table('users')->delete();
+
+            $this->restoreTable('users', $snapshot['users'] ?? []);
+            $this->restoreTable('company_settings', $snapshot['company_settings'] ?? []);
+            $this->restoreTable('projects', $snapshot['projects'] ?? []);
+            $this->restoreTable('materials', $snapshot['materials'] ?? []);
+            $this->restoreTable('expenses', $snapshot['expenses'] ?? []);
+            $this->restoreTable('categories', $snapshot['categories'] ?? []);
+            $this->restoreTable('system_reference_lists', $snapshot['system_reference_lists'] ?? []);
+        });
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Backup restored successfully. The system now reflects the uploaded snapshot.',
+            'restored_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    private function restoreTable(string $table, array $rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        DB::table($table)->insert(array_map(function ($row) {
+            return is_array($row) ? $row : (array) $row;
+        }, $rows));
     }
 }

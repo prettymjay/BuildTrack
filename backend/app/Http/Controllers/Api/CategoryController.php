@@ -13,8 +13,15 @@ class CategoryController extends Controller
 {
     public function index(): JsonResponse
     {
+        $includeInactive = filter_var(request()->query('includeInactive', false), FILTER_VALIDATE_BOOLEAN);
+
+        $query = Category::query()->orderBy('name');
+        if (! $includeInactive) {
+            $query->where('status', 'Active');
+        }
+
         return response()->json([
-            'data' => Category::query()->orderBy('name')->get(),
+            'data' => $query->get(),
         ]);
     }
 
@@ -23,9 +30,14 @@ class CategoryController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
             'description' => ['nullable', 'string'],
+            'status' => ['nullable', Rule::in(['Active', 'Inactive'])],
         ]);
 
-        $category = Category::create($data);
+        $category = Category::create([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'status' => $data['status'] ?? 'Active',
+        ]);
 
         return response()->json($category, 201);
     }
@@ -35,10 +47,15 @@ class CategoryController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('categories', 'name')->ignore($category->id)],
             'description' => ['nullable', 'string'],
+            'status' => ['nullable', Rule::in(['Active', 'Inactive'])],
         ]);
 
         $previousName = $category->name;
-        $category->update($data);
+        $category->update([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'status' => $data['status'] ?? $category->status,
+        ]);
 
         if ($previousName !== $category->name) {
             Material::query()->where('category', $previousName)->update(['category' => $category->name]);

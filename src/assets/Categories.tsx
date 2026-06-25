@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import './Categories.css';
 import { authFetch } from '../services/auth';
-import { fetchSystemOptions } from '../services/system';
+import { fetchSystemOptions, type SystemOptionRecord } from '../services/system';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 const PAGE_SIZE = 4;
 
 type Category = {
   id: number;
   name: string;
   description?: string | null;
+  status: 'Active' | 'Inactive';
 };
 
 type MaterialRecord = {
@@ -43,9 +44,16 @@ type DashboardRow = {
   group?: 'daily_expense_categories' | 'project_statuses' | 'unit_categories';
 };
 
-const blankCategory = {
+type CategoryEditorForm = {
+  name: string;
+  description: string;
+  status: 'Active' | 'Inactive';
+};
+
+const blankCategory: CategoryEditorForm = {
   name: '',
   description: '',
+  status: 'Active',
 };
 
 function CategoryIcon({ tab }: { tab: TabKey }) {
@@ -86,9 +94,9 @@ function CategoryIcon({ tab }: { tab: TabKey }) {
 
 export default function Categories() {
   const [materialCategories, setMaterialCategories] = useState<Category[]>([]);
-  const [expenseCategories, setExpenseCategories] = useState<string[]>([]);
-  const [projectStatuses, setProjectStatuses] = useState<string[]>([]);
-  const [unitCategories, setUnitCategories] = useState<string[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<SystemOptionRecord[]>([]);
+  const [projectStatuses, setProjectStatuses] = useState<SystemOptionRecord[]>([]);
+  const [unitCategories, setUnitCategories] = useState<SystemOptionRecord[]>([]);
   const [materials, setMaterials] = useState<MaterialRecord[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -99,8 +107,8 @@ export default function Categories() {
   const [message, setMessage] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
-  const [editingSystemItem, setEditingSystemItem] = useState<string | null>(null);
-  const [form, setForm] = useState(blankCategory);
+  const [editingSystemItem, setEditingSystemItem] = useState<SystemOptionRecord | null>(null);
+  const [form, setForm] = useState<CategoryEditorForm>(blankCategory);
 
   useEffect(() => {
     void Promise.all([
@@ -127,14 +135,14 @@ export default function Categories() {
 
   async function loadSystemOptions() {
     const options = await fetchSystemOptions();
-    setExpenseCategories(options.daily_expense_categories || []);
-    setProjectStatuses(options.project_statuses || []);
-    setUnitCategories(options.unit_categories || []);
+    setExpenseCategories(options.daily_expense_category_records || []);
+    setProjectStatuses(options.project_status_records || []);
+    setUnitCategories(options.unit_category_records || []);
   }
 
   async function loadCategories() {
     try {
-      const response = await authFetch(`${API_BASE}/api/categories`);
+      const response = await authFetch(`${API_BASE}/api/categories?includeInactive=1`);
       if (!response.ok) {
         setMessage(await readErrorMessage(response));
         return;
@@ -188,17 +196,17 @@ export default function Categories() {
   }
 
   function openEdit(category: Category) {
-    setEditing(category);
+    setEditing({ ...category, status: category.status || 'Active' });
     setEditingSystemItem(null);
     setEditorOpen(true);
     setMessage(null);
     setActiveTab('materials');
   }
 
-  function openEditSystemItem(name: string, tab: TabKey) {
+  function openEditSystemItem(record: SystemOptionRecord, tab: TabKey) {
     setEditing(null);
-    setEditingSystemItem(name);
-    setForm({ name, description: '' });
+    setEditingSystemItem(record);
+    setForm({ name: record.name, description: '', status: record.status || 'Active' });
     setEditorOpen(true);
     setMessage(null);
     setActiveTab(tab);
@@ -225,7 +233,7 @@ export default function Categories() {
         : await authFetch(`${API_BASE}/api/system/options/${systemGroupForTab(activeTab)}/items`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: form.name }),
+            body: JSON.stringify({ name: form.name, status: form.status }),
           });
 
       if (!response.ok) {
@@ -257,10 +265,10 @@ export default function Categories() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(editing),
           })
-        : await authFetch(`${API_BASE}/api/system/options/${systemGroupForTab(activeTab)}/items/${encodeURIComponent(editingSystemItem!)}`, {
+        : await authFetch(`${API_BASE}/api/system/options/${systemGroupForTab(activeTab)}/items/${encodeURIComponent(editingSystemItem!.name)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: form.name }),
+            body: JSON.stringify({ name: form.name, status: form.status }),
           });
 
       if (!response.ok) {
@@ -314,7 +322,7 @@ export default function Categories() {
         return;
       }
 
-      if (editingSystemItem === name) {
+      if (editingSystemItem?.name === name) {
         closeEditor();
       }
       setMessage(`${tabLabels[tab]} item deleted`);
@@ -380,37 +388,37 @@ export default function Categories() {
         name: category.name,
         type: 'Material',
         usageCount: materialUsage[category.name] || 0,
-        status: (materialUsage[category.name] || 0) > 0 ? 'Active' : 'Inactive',
+        status: category.status || 'Active',
         description: category.description || 'Used in inventory material selection.',
         editable: true,
         category,
       })),
-      expenses: expenseCategories.map((name) => ({
-        key: `expense-${name}`,
-        name,
+      expenses: expenseCategories.map((record) => ({
+        key: `expense-${record.name}`,
+        name: record.name,
         type: 'Expense',
-        usageCount: expenseUsage[name] || 0,
-        status: (expenseUsage[name] || 0) > 0 ? 'Active' : 'Inactive',
+        usageCount: expenseUsage[record.name] || 0,
+        status: record.status || 'Active',
         description: 'System expense category used in expense forms.',
         editable: true,
         group: 'daily_expense_categories',
       })),
-      projects: projectStatuses.map((name) => ({
-        key: `project-${name}`,
-        name,
+      projects: projectStatuses.map((record) => ({
+        key: `project-${record.name}`,
+        name: record.name,
         type: 'Project Status',
-        usageCount: projectUsage[name] || 0,
-        status: (projectUsage[name] || 0) > 0 ? 'Active' : 'Inactive',
+        usageCount: projectUsage[record.name] || 0,
+        status: record.status || 'Active',
         description: 'System project status used in project tracking.',
         editable: true,
         group: 'project_statuses',
       })),
-      units: unitCategories.map((name) => ({
-        key: `unit-${name}`,
-        name,
+      units: unitCategories.map((record) => ({
+        key: `unit-${record.name}`,
+        name: record.name,
         type: 'Unit',
-        usageCount: unitUsage[name] || 0,
-        status: (unitUsage[name] || 0) > 0 ? 'Active' : 'Inactive',
+        usageCount: unitUsage[record.name] || 0,
+        status: record.status || 'Active',
         description: 'System unit available in material quantity setup.',
         editable: true,
         group: 'unit_categories',
@@ -559,7 +567,7 @@ export default function Categories() {
                               </>
                             ) : row.editable ? (
                               <>
-                                <button className="row-action-btn" type="button" onClick={() => openEditSystemItem(row.name, activeTab)} aria-label={`Edit ${row.name}`}>
+                                <button className="row-action-btn" type="button" onClick={() => openEditSystemItem({ name: row.name, status: row.status }, activeTab)} aria-label={`Edit ${row.name}`}>
                                   <svg viewBox="0 0 24 24">
                                     <path d="M4 20h4l10-10-4-4L4 16v4ZM14 6l4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                                   </svg>
@@ -652,7 +660,7 @@ export default function Categories() {
             <div className="category-modal-backdrop" onClick={closeEditor}>
               <div className="category-modal" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-kicker">{editing || editingSystemItem ? `Edit ${tabLabels[activeTab]}` : `Create ${tabLabels[activeTab]}`}</div>
-                <h2>{editing ? editing.name : editingSystemItem || `Add a new ${tabLabels[activeTab].toLowerCase()} item`}</h2>
+                <h2>{editing ? editing.name : editingSystemItem?.name || `Add a new ${tabLabels[activeTab].toLowerCase()} item`}</h2>
                 <form className="category-form" onSubmit={editing || editingSystemItem ? handleUpdate : handleCreate}>
                   <label>
                     <span>Category Name</span>
@@ -669,6 +677,30 @@ export default function Categories() {
                       required
                     />
                   </label>
+                  <div className="category-status-field">
+                    <span>Category Status</span>
+                    <div className="category-status-toggle" role="group" aria-label="Category status">
+                      {(['Active', 'Inactive'] as const).map((statusOption) => {
+                        const currentStatus = editing ? editing.status : form.status;
+                        return (
+                          <button
+                            key={statusOption}
+                            type="button"
+                            className={`status-toggle-btn ${currentStatus === statusOption ? 'active' : ''}`}
+                            onClick={() => {
+                              if (editing) {
+                                setEditing({ ...editing, status: statusOption });
+                                return;
+                              }
+                              setForm({ ...form, status: statusOption });
+                            }}
+                          >
+                            {statusOption}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   {activeTab === 'materials' ? (
                     <label>
                       <span>Description / Examples</span>

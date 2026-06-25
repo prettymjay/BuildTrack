@@ -5,7 +5,7 @@ import { formatPesoValue } from '../utils/formatCurrency';
 import { authFetch } from '../services/auth';
 import { fetchSystemOptions } from '../services/system';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 type Project = {
   id: number;
@@ -27,6 +27,26 @@ const blankProject = {
   start_date: '',
   target_date: '',
 };
+
+function clampProgress(value: string) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.min(100, Math.max(0, Math.round(numeric)));
+}
+
+function formatProjectDate(value: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  });
+}
 
 export default function Projects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -285,13 +305,13 @@ export default function Projects() {
                     <div className="progress-pct">{project.progress}%</div>
                   </div>
                   <div className="progress"><div className="bar" style={{ width: `${project.progress}%` }} /></div>
-                  <div className="dates muted">START: {project.start_date || '-'} <span className="sep">TARGET: {project.target_date || '-'}</span></div>
+                  <div className="dates muted">START: {formatProjectDate(project.start_date)} <span className="sep">TARGET: {formatProjectDate(project.target_date)}</span></div>
                   <div className="card-bottom">
-                    <div>
+                    <div className="card-cost-block">
                       <div className="muted small">CURRENT COST</div>
                       <div className="cost text-bold">{formatPesoValue(project.cost || 0)}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="card-action-row">
                       <button className="btn btn-secondary" onClick={() => setSelectedProject(project)} type="button">View</button>
                       <button className="btn btn-secondary" onClick={() => openEdit(project)} type="button">Edit</button>
                       <button className="btn btn-danger" onClick={() => handleDelete(project.id)} type="button">Delete</button>
@@ -327,10 +347,18 @@ export default function Projects() {
                     <input placeholder="e.g., Quezon City, Metro Manila" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="input" />
                   </label>
                   <label>Cost (PHP)
-                    <input type="number" placeholder="e.g., 2450000" value={form.cost} onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })} className="input" />
+                    <div className="field-shell">
+                      <span className="field-affix prefix">₱</span>
+                      <input type="number" min="0" step="0.01" placeholder="e.g., 2450000" value={form.cost} onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })} className="input money-input" />
+                    </div>
+                    <span className="field-note">{formatPesoValue(Number(form.cost) || 0)}</span>
                   </label>
                   <label>Progress
-                    <input type="number" min="0" max="100" value={form.progress} onChange={(e) => setForm({ ...form, progress: Number(e.target.value) })} className="input" />
+                    <div className="field-shell">
+                      <input type="number" min="0" max="100" value={form.progress} onChange={(e) => setForm({ ...form, progress: clampProgress(e.target.value) })} className="input percent-input" />
+                      <span className="field-affix suffix">%</span>
+                    </div>
+                    <span className="field-note">{clampProgress(String(form.progress))}% complete</span>
                   </label>
                   <label>Start date
                     <input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} className="input date-input" />
@@ -364,10 +392,18 @@ export default function Projects() {
                     <input value={editProject.location || ''} onChange={(e) => setEditProject({ ...editProject, location: e.target.value })} className="input" />
                   </label>
                   <label>Cost (PHP)
-                    <input type="number" value={editProject.cost || 0} onChange={(e) => setEditProject({ ...editProject, cost: Number(e.target.value) })} className="input" />
+                    <div className="field-shell">
+                      <span className="field-affix prefix">₱</span>
+                      <input type="number" min="0" step="0.01" value={editProject.cost || 0} onChange={(e) => setEditProject({ ...editProject, cost: Number(e.target.value) })} className="input money-input" />
+                    </div>
+                    <span className="field-note">{formatPesoValue(Number(editProject.cost) || 0)}</span>
                   </label>
                   <label>Progress
-                    <input type="number" min="0" max="100" value={editProject.progress || 0} onChange={(e) => setEditProject({ ...editProject, progress: Number(e.target.value) })} className="input" />
+                    <div className="field-shell">
+                      <input type="number" min="0" max="100" value={editProject.progress || 0} onChange={(e) => setEditProject({ ...editProject, progress: clampProgress(e.target.value) })} className="input percent-input" />
+                      <span className="field-affix suffix">%</span>
+                    </div>
+                    <span className="field-note">{clampProgress(String(editProject.progress || 0))}% complete</span>
                   </label>
                   <label>Start date
                     <input type="date" value={editProject.start_date || ''} onChange={(e) => setEditProject({ ...editProject, start_date: e.target.value })} className="input date-input" />
@@ -407,10 +443,10 @@ export default function Projects() {
                     <input value={formatPesoValue(selectedProject.cost || 0)} readOnly className="input" />
                   </label>
                   <label>Start date
-                    <input value={selectedProject.start_date || '-'} readOnly className="input" />
+                    <input value={formatProjectDate(selectedProject.start_date)} readOnly className="input" />
                   </label>
                   <label>Target date
-                    <input value={selectedProject.target_date || '-'} readOnly className="input" />
+                    <input value={formatProjectDate(selectedProject.target_date)} readOnly className="input" />
                   </label>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                     <button type="button" className="btn btn-secondary" onClick={() => setSelectedProject(null)}>Close</button>

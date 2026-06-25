@@ -42,6 +42,7 @@ Route::middleware('api.token')->group(function () {
 
     Route::post('/backup', [BackupController::class, 'store'])->middleware('api.admin');
     Route::get('/backup/download', [BackupController::class, 'downloadLatest'])->middleware('api.admin');
+    Route::post('/backup/restore', [BackupController::class, 'restore'])->middleware('api.admin');
     Route::post('/backup/cleanup', [BackupController::class, 'cleanup'])->middleware('api.admin');
 
     Route::get('/settings/company', [SettingsController::class, 'companyProfile']);

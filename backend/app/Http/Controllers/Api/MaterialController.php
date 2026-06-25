@@ -15,6 +15,7 @@ class MaterialController extends Controller
 
         $search = trim((string) $request->query('search', ''));
         $category = trim((string) $request->query('category', ''));
+        $date = trim((string) $request->query('date', ''));
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
@@ -25,6 +26,10 @@ class MaterialController extends Controller
 
         if ($category !== '' && $category !== 'All') {
             $query->where('category', $category);
+        }
+
+        if ($date !== '') {
+            $query->whereDate('created_at', $date);
         }
 
         $page = max(1, (int) $request->query('page', 1));

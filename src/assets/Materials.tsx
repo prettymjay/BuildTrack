@@ -6,7 +6,7 @@ import { authFetch } from '../services/auth';
 import { useNavigate } from 'react-router-dom';
 import { fetchSystemOptions } from '../services/system';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 type Material = {
   id: number;
@@ -19,6 +19,7 @@ type Material = {
   supplier: string | null;
   supplier_category: string | null;
   low_stock?: boolean;
+  created_at?: string | null;
 };
 
 type Category = {
@@ -49,6 +50,17 @@ function quantityLabel(material: Pick<Material, 'quantity' | 'unit'>) {
   return unit ? `${quantity} ${unit}` : quantity;
 }
 
+function formatMaterialDate(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-PH', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+  });
+}
+
 export default function Materials() {
   const navigate = useNavigate();
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -62,6 +74,7 @@ export default function Materials() {
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);
   const [category, setCategory] = useState('All');
+  const [inventoryDate, setInventoryDate] = useState('');
   const [search, setSearch] = useState('');
   const [searchDraft, setSearchDraft] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -74,7 +87,7 @@ export default function Materials() {
 
   useEffect(() => {
     void fetchMaterials();
-  }, [page, perPage, category, search]);
+  }, [page, perPage, category, search, inventoryDate]);
 
   useEffect(() => {
     void Promise.all([fetchCategories(), loadSystemOptions()]);
@@ -104,6 +117,7 @@ export default function Materials() {
       params.set('perPage', String(perPage));
       if (category && category !== 'All') params.set('category', category);
       if (search) params.set('search', search);
+      if (inventoryDate) params.set('date', inventoryDate);
       const res = await authFetch(`${API_BASE}/api/materials?${params.toString()}`);
       const json = await res.json();
       setMaterials(json.data || []);
@@ -210,6 +224,78 @@ export default function Materials() {
     setSearch(searchDraft.trim());
   }
 
+  function handlePrintInventory() {
+    const printWindow = window.open('', '_blank', 'width=1100,height=760');
+    if (!printWindow) return;
+
+    const title = inventoryDate
+      ? `Materials Inventory In - ${formatMaterialDate(inventoryDate)}`
+      : 'Materials Inventory In';
+
+    const rows = materials.map((material) => `
+      <tr>
+        <td>${material.name}</td>
+        <td>${material.category || '-'}</td>
+        <td>${quantityLabel(material)}</td>
+        <td>${formatPesoValue(parseCost(material.cost))}</td>
+        <td>${material.supplier || '-'}</td>
+        <td>${formatMaterialDate(material.created_at)}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.open();
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${title}</title>
+          <style>
+            @page{size:auto;margin:16mm}
+            *{box-sizing:border-box}
+            body{font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;padding:28px}
+            h1{margin:0;font-size:28px}
+            .meta{margin-top:10px;color:#64748b;font-size:14px}
+            .summary{margin-top:18px;display:flex;gap:14px;flex-wrap:wrap}
+            .pill{padding:10px 14px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;font-weight:700}
+            table{width:100%;margin-top:24px;border-collapse:collapse}
+            th,td{padding:12px 10px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:14px}
+            th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;background:#f8fafc}
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          <div class="meta">Printed from ProBuild App materials inventory</div>
+          <div class="summary">
+            <div class="pill">Records: ${materials.length}</div>
+            <div class="pill">Inventory Value: ${formatPesoValue(visibleValue)}</div>
+            <div class="pill">Low Stock Alerts: ${lowStockCount}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>Category</th>
+                <th>Quantity</th>
+                <th>Cost</th>
+                <th>Supplier</th>
+                <th>Inventory Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || '<tr><td colspan="6">No materials available for this selection.</td></tr>'}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    window.setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
+  }
+
   return (
     <>
       <Sidebar />
@@ -222,27 +308,39 @@ export default function Materials() {
             </div>
 
             <div className="materials-controls">
-              <input
-                className="filter"
-                placeholder="Search materials..."
-                value={searchDraft}
-                onChange={(e) => setSearchDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') applySearch();
-                }}
-              />
-              <select className="filter" value={String(perPage)} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}>
-                <option value="10">Show 10</option>
-                <option value="25">Show 25</option>
-                <option value="50">Show 50</option>
-                <option value="100">Show 100</option>
-              </select>
-              <select className="filter" value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }}>
-                {categoryOptions.map((value) => <option key={value}>{value}</option>)}
-              </select>
-              <button className="btn add" onClick={applySearch} type="button">Search</button>
-              <button className="btn add" onClick={() => navigate('/categories')} type="button">Manage Categories</button>
-              <button className="btn add" onClick={() => setShowAdd(true)} type="button">Add Material</button>
+              <div className="materials-filter-group">
+                <input
+                  type="date"
+                  className="filter filter-date"
+                  value={inventoryDate}
+                  onChange={(e) => { setInventoryDate(e.target.value); setPage(1); }}
+                  aria-label="Inventory date"
+                />
+                <input
+                  className="filter filter-search"
+                  placeholder="Search materials..."
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') applySearch();
+                  }}
+                />
+                <select className="filter filter-select" value={String(perPage)} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}>
+                  <option value="10">Show 10</option>
+                  <option value="25">Show 25</option>
+                  <option value="50">Show 50</option>
+                  <option value="100">Show 100</option>
+                </select>
+                <select className="filter filter-select" value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }}>
+                  {categoryOptions.map((value) => <option key={value}>{value}</option>)}
+                </select>
+                <button className="btn add toolbar-btn toolbar-search-btn" onClick={applySearch} type="button">Search</button>
+              </div>
+              <div className="materials-action-group">
+                <button className="btn add alt-btn toolbar-btn" onClick={handlePrintInventory} type="button">Print Inventory</button>
+                <button className="btn add toolbar-btn" onClick={() => navigate('/categories')} type="button">Manage Categories</button>
+                <button className="btn add toolbar-btn" onClick={() => setShowAdd(true)} type="button">Add Material</button>
+              </div>
             </div>
           </div>
 
