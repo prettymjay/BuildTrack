@@ -1,145 +1,213 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import './Materials.css';
 import Sidebar from '../components/Sidebar';
 import { formatPesoValue } from '../utils/formatCurrency';
 import { authFetch } from '../services/auth';
+import { useNavigate } from 'react-router-dom';
+import { fetchSystemOptions } from '../services/system';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
 
 type Material = {
-  id?: string | number;
-  code: string;
+  id: number;
+  code: string | null;
   name: string;
-  category: string;
-  quantity: string;
-  cost: string;
-  supplier: string;
-  lowStock?: boolean;
+  category: string | null;
+  quantity: string | null;
+  unit: string | null;
+  cost: string | null;
+  supplier: string | null;
+  supplier_category: string | null;
+  low_stock?: boolean;
+};
+
+type Category = {
+  id: number;
+  name: string;
+  description?: string | null;
+};
+
+const blankMaterial = {
+  name: '',
+  category: '',
+  quantity: '',
+  unit: '',
+  cost: '',
+  supplier: '',
+  supplier_category: '',
+  low_stock: false,
+};
+
+function parseCost(value: string | null | undefined) {
+  const numeric = Number.parseFloat(String(value ?? '').replace(/[^\d.-]/g, ''));
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
-const initial: Material[] = [
-  { code: 'CEM001', name: 'Portland Cement (Type I)', category: 'STRUCTURAL', quantity: '1,200 Bags', cost: formatPesoValue(8.50), supplier: 'Global Concr. Inc.' },
-  { code: 'STB-12M', name: 'Deformed Steel Bars (12mm)', category: 'STRUCTURAL', quantity: '150 Tons', cost: formatPesoValue(640.00), supplier: 'Metro Steel Mill', lowStock:true },
-  { code: 'PPR-20L', name: 'PPR Pipes (20mm, 4m)', category: 'PLUMBING', quantity: '450 Units', cost: formatPesoValue(12.20), supplier: 'AquaFlow Systems' },
-  { code: 'VNY-FLR', name: 'Luxury Vinyl Flooring Tiles', category: 'FINISHING', quantity: '2,800 SqFt', cost: formatPesoValue(3.15), supplier: 'Interior Decor Ltd' },
-]
-
-function fmtNumber(n:number){
-  if(n>=1000000) return `${(n/1000000).toFixed(1)}M`;
-  if(n>=1000) return `${Math.round(n/1000)},000`;
-  return String(n);
+function quantityLabel(material: Pick<Material, 'quantity' | 'unit'>) {
+  const quantity = material.quantity?.trim() || '-';
+  const unit = material.unit?.trim();
+  return unit ? `${quantity} ${unit}` : quantity;
 }
 
-export default function Materials(): JSX.Element{
-  const [materials, setMaterials] = useState<Material[]>(initial);
+export default function Materials() {
+  const navigate = useNavigate();
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [unitOptions, setUnitOptions] = useState<string[]>([]);
+  const [supplierCategoryOptions, setSupplierCategoryOptions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<Material | null>(null);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);
+  const [category, setCategory] = useState('All');
+  const [search, setSearch] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [form, setForm] = useState(blankMaterial);
+  const [editItem, setEditItem] = useState<Material | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [form, setForm] = useState<Material | null>(null);
-  const [editItem, setEditItem] = useState<Material | null>(null);
-  const [editKey, setEditKey] = useState<string | number | null>(null);
+  useEffect(() => {
+    void fetchMaterials();
+  }, [page, perPage, category, search]);
 
-  // When server provides paged results, `materials` already contains the current page.
-  // Fall back to client-side slicing when `total` is 0 (no server paging yet).
-  const pagedMaterials = (total && total > 0) ? materials : materials.slice((page - 1) * perPage, page * perPage);
+  useEffect(() => {
+    void Promise.all([fetchCategories(), loadSystemOptions()]);
+  }, []);
 
-  function getPageList(cur: number, total: number){
-    if(total <= 7){
-      return Array.from({length: total}, (_,i)=>i+1);
-    }
-    const pages: (number|string)[] = [];
-    pages.push(1);
-    let left = Math.max(2, cur-1);
-    let right = Math.min(total-1, cur+1);
-    if(left > 2) pages.push('...');
-    for(let p = left; p <= right; p++) pages.push(p);
-    if(right < total-1) pages.push('...');
-    pages.push(total);
-    return pages;
+  async function loadSystemOptions() {
+    const options = await fetchSystemOptions();
+    setUnitOptions(options.unit_categories);
+    setSupplierCategoryOptions(options.supplier_categories);
   }
 
-  function openDrawer(m: Material){ setSelected(m); setDrawerOpen(true); }
+  async function fetchCategories() {
+    try {
+      const res = await authFetch(`${API_BASE}/api/categories`);
+      const json = await res.json();
+      setCategories(json.data || []);
+    } catch (err) {
+      console.error('categories fetch', err);
+    }
+  }
 
-  async function fetchMaterials(){
-    try{
+  async function fetchMaterials() {
+    setLoading(true);
+    try {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('perPage', String(perPage));
+      if (category && category !== 'All') params.set('category', category);
+      if (search) params.set('search', search);
       const res = await authFetch(`${API_BASE}/api/materials?${params.toString()}`);
       const json = await res.json();
       setMaterials(json.data || []);
       setTotal(json.total || 0);
-    }catch(err){ console.error('materials fetch', err); }
+    } catch (err) {
+      console.error('materials fetch', err);
+    }
+    setLoading(false);
   }
 
-  React.useEffect(()=>{ fetchMaterials(); }, [page, perPage]);
-  
-  useEffect(()=>{ if(!showAdd) setForm(null); }, [showAdd]);
+  const visibleValue = useMemo(
+    () => materials.reduce((sum, material) => sum + parseCost(material.cost), 0),
+    [materials],
+  );
 
-  async function handleCreate(e:any){
-    e && e.preventDefault && e.preventDefault();
-    if(!form) return;
-    try{
-      const res = await authFetch(`${API_BASE}/api/materials`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form)});
-      if(res.ok){
-        const created = await res.json();
-        // if server paging is on, refetch; otherwise prepend
-        if(total && total > 0) fetchMaterials(); else setMaterials(prev=>[created, ...prev]);
+  const lowStockCount = useMemo(
+    () => materials.filter((material) => material.low_stock).length,
+    [materials],
+  );
+
+  const categoryOptions = useMemo(() => ['All', ...categories.map((categoryItem) => categoryItem.name)], [categories]);
+
+  function getPageList(cur: number, pageCount: number) {
+    if (pageCount <= 7) return Array.from({ length: pageCount }, (_, i) => i + 1);
+    const pages: (number | string)[] = [1];
+    const left = Math.max(2, cur - 1);
+    const right = Math.min(pageCount - 1, cur + 1);
+    if (left > 2) pages.push('...');
+    for (let p = left; p <= right; p += 1) pages.push(p);
+    if (right < pageCount - 1) pages.push('...');
+    pages.push(pageCount);
+    return pages;
+  }
+
+  function openDrawer(material: Material) {
+    setSelected(material);
+    setDrawerOpen(true);
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await authFetch(`${API_BASE}/api/materials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
         setShowAdd(false);
-        setForm(null);
-      } else {
-        console.error('create material failed');
+        setForm(blankMaterial);
+        await fetchMaterials();
       }
-    }catch(err){ console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
+    setSaving(false);
   }
 
-  function openEdit(m: Material){
-    setEditItem(m);
-    setEditKey(m.id ?? m.code);
+  function openEdit(material: Material) {
+    setEditItem(material);
     setShowEdit(true);
   }
 
-  async function handleEditSubmit(e:any){
-    e && e.preventDefault && e.preventDefault();
-    if(!editItem) return;
-    try{
-      if(editItem.id != null){
-        const res = await authFetch(`${API_BASE}/api/materials/${editItem.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editItem)});
-        if(res.ok){
-          const updated = await res.json();
-          setMaterials(prev => prev.map(m => (m.id === updated.id ? updated : m)));
-          setShowEdit(false);
-          setEditItem(null);
-          setEditKey(null);
-        } else console.error('update failed');
-      } else if(editKey != null){
-        setMaterials(prev => prev.map(m => ((m.id ?? m.code) === editKey ? { ...m, ...editItem } : m)));
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editItem) return;
+    setSaving(true);
+    try {
+      const res = await authFetch(`${API_BASE}/api/materials/${editItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editItem),
+      });
+      if (res.ok) {
         setShowEdit(false);
         setEditItem(null);
-        setEditKey(null);
+        await fetchMaterials();
       }
-    }catch(err){ console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
+    setSaving(false);
   }
 
-  async function handleDelete(idOrCode:any){
-    if(!window.confirm('Delete this material?')) return;
-    if(typeof idOrCode === 'number' || (typeof idOrCode === 'string' && /^\d+$/.test(idOrCode))){
-      try{
-        const res = await authFetch(`${API_BASE}/api/materials/${idOrCode}`, { method: 'DELETE' });
-        if(res.ok){ setMaterials(prev => prev.filter(m => m.id !== idOrCode)); }
-        else console.error('delete failed');
-      }catch(err){ console.error(err); }
-      return;
+  async function handleDelete(id: number) {
+    if (!window.confirm('Delete this material?')) return;
+    try {
+      const res = await authFetch(`${API_BASE}/api/materials/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (selected?.id === id) {
+          setDrawerOpen(false);
+          setSelected(null);
+        }
+        await fetchMaterials();
+      }
+    } catch (err) {
+      console.error(err);
     }
+  }
 
-    setMaterials(prev => prev.filter(m => (m.id ?? m.code) !== idOrCode));
+  function applySearch() {
+    setPage(1);
+    setSearch(searchDraft.trim());
   }
 
   return (
@@ -147,206 +215,247 @@ export default function Materials(): JSX.Element{
       <Sidebar />
       <main className="main">
         <div className="materials-root">
-      <div className="materials-header">
-        <div>
-          <h1 className="materials-title">Materials Inventory</h1>
-          <div className="materials-sub">Central registry for all structural and finishing materials.</div>
-        </div>
-
-        <div className="materials-controls">
-            <select className="filter" value={String(perPage)} onChange={e=>{ setPerPage(Number(e.target.value)); setPage(1); }}>
-              <option value="10">Show 10</option>
-              <option value="25">Show 25</option>
-              <option value="50">Show 50</option>
-              <option value="100">Show 100</option>
-            </select>
-            <select className="filter">
-              <option>All Categories</option>
-              <option>Structural</option>
-              <option>Plumbing</option>
-              <option>Finishing</option>
-            </select>
-            <button className="btn add" onClick={()=>setShowAdd(true)}>+ Add Material</button>
-          </div>
-      </div>
-
-      <div className="stats-row">
-        <div className="stat-card">
-          <div className="label">TOTAL SKU</div>
-          <div className="value">{fmtNumber(1284)}</div>
-          <div className="delta">+12%</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">LOW STOCK ALERTS</div>
-          <div className="value danger">24 <span className="badge">ACTION</span></div>
-        </div>
-        <div className="stat-card">
-          <div className="label">PENDING ORDERS</div>
-          <div className="value">8</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">INVENTORY VALUE</div>
-          <div className="value">{formatPesoValue(4200000)}</div>
-        </div>
-      </div>
-
-      <div className="materials-table-wrap">
-        <table className="materials-table">
-          <thead>
-            <tr>
-              <th>ITEM CODE</th>
-              <th>ITEM NAME</th>
-              <th>CATEGORY</th>
-              <th>QUANTITY</th>
-              <th>COST PRICE</th>
-              <th>SUPPLIER</th>
-              <th>ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagedMaterials.map((m)=> (
-              <tr key={m.id ?? m.code}>
-                <td className="mono">{m.code}</td>
-                <td className="strong">{m.name}</td>
-                <td><span className="tag">{m.category}</span></td>
-                <td className={m.lowStock? 'lowstock':''}>{m.quantity}{m.lowStock? <div className="low-note">LOW STOCK</div>:null}</td>
-                <td className="mono">{m.cost}</td>
-                <td>{m.supplier}</td>
-                <td className="actions">
-                  <button className="icon" title="History" onClick={()=>openDrawer(m)}>⟳</button>
-                  <button className="icon action-edit" title="Edit" onClick={()=>openEdit(m)}>✎</button>
-                  <button className="icon action-delete" title="Delete" onClick={()=>handleDelete(m.id ?? m.code)}>🗑</button>
-                  {!(m as any).id ? <span className="muted small">(local)</span> : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="table-footer">
-          <div className="table-summary">Showing {(page-1)*perPage+1}-{Math.min(page*perPage,total)} of {total} materials</div>
-          <div className="pagination">
-            <button className="page-arrow" onClick={()=>setPage(p=>Math.max(1,p-1))} aria-label="Previous">‹</button>
-            {getPageList(page, totalPages).map((item, idx)=>{
-              if(typeof item === 'string') return <span key={`el-${idx}`} className="page-ellipsis">{item}</span>;
-              return <button key={item} className={`page-num ${item===page? 'active':''}`} onClick={()=>setPage(item)}>{item}</button>
-            })}
-            <button className="page-arrow" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} aria-label="Next">›</button>
-          </div>
-        </div>
-      </div>
-
-      {showAdd && (
-        <div className="modal-overlay">
-          <div className="modal card">
-            <h3>Add Material</h3>
-            <form onSubmit={handleCreate} className="modal-form">
-              <label>Item Code
-                <input required placeholder="e.g., CEM001" value={form?.code||''} onChange={e=>setForm({...form, code: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Use uppercase code, e.g., CEM001</div>
-              </label>
-              <label>Name
-                <input required placeholder="e.g., Portland Cement (Type I)" value={form?.name||''} onChange={e=>setForm({...form, name: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Full item name helps searches</div>
-              </label>
-              <label>Category
-                <input placeholder="e.g., STRUCTURAL" value={form?.category||''} onChange={e=>setForm({...form, category: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Category should be a short word (STRUCTURAL, PLUMBING)</div>
-              </label>
-              <label>Quantity
-                <input placeholder="e.g., 1,200 Bags" value={form?.quantity||''} onChange={e=>setForm({...form, quantity: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Use units in text, e.g., "1,200 Bags" or "150 Tons"</div>
-              </label>
-              <label>Cost
-                <input placeholder="e.g., 8.50" value={form?.cost||''} onChange={e=>setForm({...form, cost: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Enter numeric cost in PHP (no currency symbol). Example: 8.50</div>
-              </label>
-              <label>Supplier
-                <input placeholder="e.g., Global Concr. Inc." value={form?.supplier||''} onChange={e=>setForm({...form, supplier: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Supplier name or company</div>
-              </label>
-              <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-                <button type="button" className="btn btn-secondary" onClick={()=>setShowAdd(false)}>Cancel</button>
-                <button className="btn btn-primary" type="submit">Create</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showEdit && editItem && (
-        <div className="modal-overlay">
-          <div className="modal card">
-            <h3>Edit Material</h3>
-            <form onSubmit={handleEditSubmit} className="modal-form">
-              <label>Item Code
-                <input required placeholder="e.g., CEM001" value={(editItem as any).code||''} onChange={e=>setEditItem({...editItem, code: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Use uppercase code, e.g., CEM001</div>
-              </label>
-              <label>Name
-                <input required placeholder="e.g., Portland Cement (Type I)" value={(editItem as any).name||''} onChange={e=>setEditItem({...editItem, name: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Full item name helps searches</div>
-              </label>
-              <label>Category
-                <input placeholder="e.g., STRUCTURAL" value={(editItem as any).category||''} onChange={e=>setEditItem({...editItem, category: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Category should be a short word (STRUCTURAL, PLUMBING)</div>
-              </label>
-              <label>Quantity
-                <input placeholder="e.g., 1,200 Bags" value={(editItem as any).quantity||''} onChange={e=>setEditItem({...editItem, quantity: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Use units in text, e.g., "1,200 Bags" or "150 Tons"</div>
-              </label>
-              <label>Cost
-                <input placeholder="e.g., 8.50" value={(editItem as any).cost||''} onChange={e=>setEditItem({...editItem, cost: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Enter numeric cost in PHP (no currency symbol). Example: 8.50</div>
-              </label>
-              <label>Supplier
-                <input placeholder="e.g., Global Concr. Inc." value={(editItem as any).supplier||''} onChange={e=>setEditItem({...editItem, supplier: e.target.value} as Material)} className="input" />
-                <div className="input-hint">Supplier name or company</div>
-              </label>
-              <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-                <button type="button" className="btn btn-secondary" onClick={()=>{setShowEdit(false); setEditItem(null);}}>Cancel</button>
-                <button className="btn btn-primary" type="submit">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {drawerOpen && selected && (
-        <aside className="drawer">
-          <div className="drawer-header">
+          <div className="materials-header">
             <div>
-              <div className="drawer-title">Purchase History</div>
-              <div className="drawer-sub mono">{selected.code} | {selected.name}</div>
+              <h1 className="materials-title">Materials Inventory</h1>
+              <div className="materials-sub">Standardized construction materials, units, and supplier types for your inventory workflow.</div>
             </div>
-            <button className="close" onClick={()=>setDrawerOpen(false)}>✕</button>
+
+            <div className="materials-controls">
+              <input
+                className="filter"
+                placeholder="Search materials..."
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') applySearch();
+                }}
+              />
+              <select className="filter" value={String(perPage)} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}>
+                <option value="10">Show 10</option>
+                <option value="25">Show 25</option>
+                <option value="50">Show 50</option>
+                <option value="100">Show 100</option>
+              </select>
+              <select className="filter" value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }}>
+                {categoryOptions.map((value) => <option key={value}>{value}</option>)}
+              </select>
+              <button className="btn add" onClick={applySearch} type="button">Search</button>
+              <button className="btn add" onClick={() => navigate('/categories')} type="button">Manage Categories</button>
+              <button className="btn add" onClick={() => setShowAdd(true)} type="button">Add Material</button>
+            </div>
           </div>
 
-          <div className="drawer-list">
-            <div className="purchase">
-              <div className="p-title">Batch #PO-9923</div>
-              <div className="p-sub">Purchased 500 Bags @ {formatPesoValue(8.20)}/ea</div>
-              <div className="p-date">Oct 24, 2023</div>
+          <div className="stats-row">
+            <div className="stat-card">
+              <div className="label">VISIBLE MATERIALS</div>
+              <div className="value">{materials.length}</div>
+              <div className="delta">Current page</div>
             </div>
-            <div className="purchase">
-              <div className="p-title">Batch #PO-8812</div>
-              <div className="p-sub">Purchased 700 Bags @ {formatPesoValue(8.50)}/ea</div>
-              <div className="p-date">Aug 12, 2023</div>
+            <div className="stat-card">
+              <div className="label">LOW STOCK ALERTS</div>
+              <div className="value danger">{lowStockCount}</div>
             </div>
-            <div className="purchase">
-              <div className="p-title">Batch #PO-7231</div>
-              <div className="p-sub">Purchased 400 Bags @ {formatPesoValue(8.45)}/ea</div>
-              <div className="p-date">May 05, 2023</div>
+            <div className="stat-card">
+              <div className="label">TOTAL RECORDS</div>
+              <div className="value">{total}</div>
+            </div>
+            <div className="stat-card">
+              <div className="label">VISIBLE INVENTORY VALUE</div>
+              <div className="value">{formatPesoValue(visibleValue)}</div>
             </div>
           </div>
 
-          <div className="drawer-footer">
-            <div className="current-inv">CURRENT INVENTORY <span className="mono">1,200 Bags</span></div>
-            <button className="btn report">Generate Stock Report</button>
+          <div className="materials-table-wrap">
+            <table className="materials-table">
+              <thead>
+                <tr>
+                  <th>ITEM NAME</th>
+                  <th>CATEGORY</th>
+                  <th>QUANTITY</th>
+                  <th>COST PRICE</th>
+                  <th>SUPPLIER</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="muted">Loading materials...</td>
+                  </tr>
+                ) : materials.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="muted">No materials found yet.</td>
+                  </tr>
+                ) : materials.map((material) => (
+                  <tr key={material.id}>
+                    <td className="strong">{material.name}</td>
+                    <td><span className="tag">{material.category || 'UNCATEGORIZED'}</span></td>
+                    <td className={material.low_stock ? 'lowstock' : ''}>
+                      {quantityLabel(material)}
+                      {material.low_stock ? <div className="low-note">LOW STOCK</div> : null}
+                    </td>
+                    <td className="mono">{formatPesoValue(parseCost(material.cost))}</td>
+                    <td>{material.supplier || '-'}</td>
+                    <td className="actions">
+                      <button className="icon" title="Details" onClick={() => openDrawer(material)} type="button">Info</button>
+                      <button className="icon action-edit" title="Edit" onClick={() => openEdit(material)} type="button">Edit</button>
+                      <button className="icon action-delete" title="Delete" onClick={() => handleDelete(material.id)} type="button">Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="table-footer">
+              <div className="table-summary">Showing {total === 0 ? 0 : (page - 1) * perPage + 1}-{Math.min(page * perPage, total)} of {total} materials</div>
+              <div className="pagination">
+                <button className="page-arrow" onClick={() => setPage((p) => Math.max(1, p - 1))} aria-label="Previous">&lt;</button>
+                {getPageList(page, totalPages).map((item, idx) => {
+                  if (typeof item === 'string') return <span key={`el-${idx}`} className="page-ellipsis">{item}</span>;
+                  return <button key={item} className={`page-num ${item === page ? 'active' : ''}`} onClick={() => setPage(item)}>{item}</button>;
+                })}
+                <button className="page-arrow" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} aria-label="Next">&gt;</button>
+              </div>
+            </div>
           </div>
-        </aside>
-      )}
+
+          {showAdd && (
+            <div className="modal-overlay">
+              <div className="modal card">
+                <h3>Add Material</h3>
+                <form onSubmit={handleCreate} className="modal-form">
+                  <label>Name
+                    <input required placeholder="e.g., Portland Cement" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
+                  </label>
+                  <label>Category
+                    <select required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input">
+                      <option value="">Select category</option>
+                      {categories.map((categoryItem) => <option key={categoryItem.id} value={categoryItem.name}>{categoryItem.name}</option>)}
+                    </select>
+                  </label>
+                  <label>Quantity
+                    <input placeholder="e.g., 10" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="input" />
+                  </label>
+                  <label>Unit
+                    <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="input">
+                      <option value="">Select unit</option>
+                      {unitOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>Cost
+                    <input placeholder="e.g., 12" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} className="input" />
+                  </label>
+                  <label>Supplier
+                    <input placeholder="e.g., Akyatan Trading" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className="input" />
+                  </label>
+                  <label>Supplier Category
+                    <select value={form.supplier_category} onChange={(e) => setForm({ ...form, supplier_category: e.target.value })} className="input">
+                      <option value="">Select supplier category</option>
+                      {supplierCategoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label className="checkbox-row">
+                    <input type="checkbox" checked={form.low_stock} onChange={(e) => setForm({ ...form, low_stock: e.target.checked })} />
+                    <span>Mark as low stock</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+                    <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Create'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {showEdit && editItem && (
+            <div className="modal-overlay">
+              <div className="modal card">
+                <h3>Edit Material</h3>
+                <form onSubmit={handleEditSubmit} className="modal-form">
+                  <label>Name
+                    <input required value={editItem.name || ''} onChange={(e) => setEditItem({ ...editItem, name: e.target.value })} className="input" />
+                  </label>
+                  <label>Category
+                    <select required value={editItem.category || ''} onChange={(e) => setEditItem({ ...editItem, category: e.target.value })} className="input">
+                      <option value="">Select category</option>
+                      {categories.map((categoryItem) => <option key={categoryItem.id} value={categoryItem.name}>{categoryItem.name}</option>)}
+                    </select>
+                  </label>
+                  <label>Quantity
+                    <input value={editItem.quantity || ''} onChange={(e) => setEditItem({ ...editItem, quantity: e.target.value })} className="input" />
+                  </label>
+                  <label>Unit
+                    <select value={editItem.unit || ''} onChange={(e) => setEditItem({ ...editItem, unit: e.target.value })} className="input">
+                      <option value="">Select unit</option>
+                      {unitOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>Cost
+                    <input value={editItem.cost || ''} onChange={(e) => setEditItem({ ...editItem, cost: e.target.value })} className="input" />
+                  </label>
+                  <label>Supplier
+                    <input value={editItem.supplier || ''} onChange={(e) => setEditItem({ ...editItem, supplier: e.target.value })} className="input" />
+                  </label>
+                  <label>Supplier Category
+                    <select value={editItem.supplier_category || ''} onChange={(e) => setEditItem({ ...editItem, supplier_category: e.target.value })} className="input">
+                      <option value="">Select supplier category</option>
+                      {supplierCategoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label className="checkbox-row">
+                    <input type="checkbox" checked={Boolean(editItem.low_stock)} onChange={(e) => setEditItem({ ...editItem, low_stock: e.target.checked })} />
+                    <span>Mark as low stock</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => { setShowEdit(false); setEditItem(null); }}>Cancel</button>
+                    <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {drawerOpen && selected && (
+            <aside className="drawer">
+              <div className="drawer-header">
+                <div>
+                  <div className="drawer-title">Material Details</div>
+                  <div className="drawer-sub">{selected.name}</div>
+                </div>
+                <button className="close" onClick={() => setDrawerOpen(false)} type="button">X</button>
+              </div>
+
+              <div className="drawer-list">
+                <div className="purchase">
+                  <div className="p-title">Category</div>
+                  <div className="p-sub">{selected.category || 'Uncategorized'}</div>
+                </div>
+                <div className="purchase">
+                  <div className="p-title">Quantity</div>
+                  <div className="p-sub">{quantityLabel(selected)}</div>
+                </div>
+                <div className="purchase">
+                  <div className="p-title">Unit Cost</div>
+                  <div className="p-sub">{formatPesoValue(parseCost(selected.cost))}</div>
+                </div>
+                <div className="purchase">
+                  <div className="p-title">Supplier</div>
+                  <div className="p-sub">{selected.supplier || '-'}</div>
+                </div>
+                <div className="purchase">
+                  <div className="p-title">Supplier Category</div>
+                  <div className="p-sub">{selected.supplier_category || '-'}</div>
+                </div>
+              </div>
+
+              <div className="drawer-footer">
+                <div className="current-inv">LOW STOCK <span className="mono">{selected.low_stock ? 'YES' : 'NO'}</span></div>
+                <button className="btn report" type="button" onClick={() => openEdit(selected)}>Edit Material</button>
+              </div>
+            </aside>
+          )}
         </div>
       </main>
     </>
-  )
+  );
 }

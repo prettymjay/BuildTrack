@@ -7,12 +7,12 @@ type LoginResult = {
 
 type ResetResult = {
   success: boolean;
-  resetToken?: string;
+  message?: string;
   expiresInMinutes?: number;
   error?: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
 
 export async function login(username: string, password: string): Promise<LoginResult> {
   try {
@@ -24,52 +24,52 @@ export async function login(username: string, password: string): Promise<LoginRe
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      return { success: false, error: err.error || 'Login failed' };
+      return { success: false, error: err.error || err.message || 'Login failed' };
     }
 
     const data = await resp.json();
     return { success: true, token: data.token, user: data.user };
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Network error' };
+    return { success: false, error: e?.message || 'Unable to reach the server. Check that the API is running.' };
   }
 }
 
-export async function requestPasswordReset(username: string): Promise<ResetResult> {
+export async function requestPasswordReset(email: string): Promise<ResetResult> {
   try {
     const resp = await fetch(`${API_BASE}/api/password/forgot`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username }),
+      body: JSON.stringify({ email }),
     });
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      return { success: false, error: err.error || 'Request failed' };
+      return { success: false, error: err.error || err.message || 'Request failed' };
     }
 
     const data = await resp.json();
-    return { success: true, resetToken: data.resetToken, expiresInMinutes: data.expiresInMinutes };
+    return { success: true, message: data.message, expiresInMinutes: data.expiresInMinutes };
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Network error' };
+    return { success: false, error: e?.message || 'Unable to reach the server. Check that the API is running.' };
   }
 }
 
-export async function resetPassword(username: string, token: string, password: string): Promise<ResetResult> {
+export async function resetPassword(email: string, token: string, password: string): Promise<ResetResult> {
   try {
     const resp = await fetch(`${API_BASE}/api/password/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, token, password }),
+      body: JSON.stringify({ email, token, password }),
     });
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      return { success: false, error: err.error || 'Reset failed' };
+      return { success: false, error: err.error || err.message || 'Reset failed' };
     }
 
     return { success: true };
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Network error' };
+    return { success: false, error: e?.message || 'Unable to reach the server. Check that the API is running.' };
   }
 }
 

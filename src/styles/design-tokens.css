@@ -5,29 +5,36 @@
 
 :root {
   /* Colors */
-  --color-nav: #081827; /* dark navy */
-  --color-nav-foreground: #dfeff6;
-  --color-bg: #f2f6f8; /* page background */
+  --color-nav: #0f1b2d;
+  --color-nav-foreground: #e7eef7;
+  --color-bg: #f3f6fb;
   --color-card: #ffffff;
-  --color-text: #243444;
-  --color-muted: #7a8a97;
-  --color-border: #e9eef2;
-  --color-accent: #f97316; /* primary accent / orange */
-  --color-accent-2: #ff8a33; /* lighter accent */
-  --color-success: #1b9b3a;
-  --color-danger: #e04b3b;
+  --color-text: #223246;
+  --color-muted: #6f8095;
+  --color-border: #d9e3ee;
+  --color-accent: #f97316;
+  --color-accent-2: #fb923c;
+  --color-accent-deep: #c85f12;
+  --color-success: #1f8f57;
+  --color-danger: #d74d42;
+  --color-surface: #f8fbff;
+  --color-on-accent: #ffffff;
 
   /* Elevation */
-  --shadow-sm: 0 2px 6px rgba(2,6,23,0.06);
-  --shadow-md: 0 6px 14px rgba(2,6,23,0.08);
+  --shadow-sm: 0 8px 22px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 18px 42px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 28px 64px rgba(15, 23, 42, 0.12);
 
   /* Typography */
-  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
+  --font-sans: Aptos, "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  --font-heading: Aptos Display, Aptos, "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
   --text-base: 16px;
   --text-small: 13px;
-  --heading-lg: 34px;
-  --heading-md: 22px;
+  --heading-lg: 42px;
+  --heading-md: 24px;
+  --heading-sm: 18px;
+  --line-base: 1.55;
 
   /* Spacing scale */
   --space-1: 4px;
@@ -36,10 +43,13 @@
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 28px;
+  --space-7: 36px;
+  --space-8: 48px;
 
   /* Radii */
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
 }
 
 /* Base page layout helpers */
@@ -50,6 +60,7 @@ body {
   font-size: var(--text-base);
   color: var(--color-text);
   background: var(--color-bg);
+  line-height: var(--line-base);
 }
 
 /* Containers */
@@ -66,25 +77,32 @@ body {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-border);
-  padding: var(--space-4);
+  padding: var(--space-5);
 }
 
 /* Headings */
-.h1 { font-size: var(--heading-lg); margin: 0 0 var(--space-4); }
-.h2 { font-size: var(--heading-md); margin: 0 0 var(--space-3); }
+.h1 { font-size: var(--heading-lg); margin: 0 0 var(--space-4); font-family: var(--font-heading); font-weight: 800; letter-spacing: -0.04em; }
+.h2 { font-size: var(--heading-md); margin: 0 0 var(--space-3); font-family: var(--font-heading); font-weight: 750; letter-spacing: -0.03em; }
 
 /* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  border: 0;
-  padding: 10px 14px;
-  border-radius: 8px;
+  min-height: 46px;
+  border: 1px solid transparent;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
   font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease;
 }
-.btn-primary { background: var(--color-accent); color: #fff; }
+.btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn-primary { background: linear-gradient(180deg, var(--color-accent-2), var(--color-accent)); color: var(--color-on-accent); box-shadow: 0 14px 28px rgba(249, 115, 22, 0.18); }
 .btn-secondary { background: var(--color-card); color: var(--color-text); border: 1px solid var(--color-border); }
 .btn-ghost { background: transparent; color: var(--color-text); }
 
@@ -92,11 +110,21 @@ body {
 .input {
   display: inline-block;
   width: 100%;
-  padding: 10px 12px;
+  min-height: 46px;
+  padding: 11px 14px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   background: #fff;
   color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.input:focus,
+select.input:focus,
+textarea.input:focus {
+  outline: none;
+  border-color: rgba(249, 115, 22, 0.55);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
 }
 
 /* Utility text */

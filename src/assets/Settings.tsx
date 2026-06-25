@@ -1,23 +1,96 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import './Settings.css';
 import { authFetch } from '../services/auth';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('profile');
   const [company, setCompany] = useState({
-    name: 'ProBuild Global Solutions',
-    address: '1200 Industrial Way, Suite 400,\nChicago, IL 60601,\nUnited States',
-    contact: '+1 (555) 0123-4567',
-    email: 'admin@probuild.com'
+    name: 'ProBuild App',
+    address: '',
+    contact: '',
+    email: '',
   });
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
-  const [adminCreds, setAdminCreds] = useState({ username: 'admin', password: '', confirm: '' });
+  const [adminCreds, setAdminCreds] = useState({ username: 'admin', email: '', password: '', confirm: '' });
+  const [adminDefaults, setAdminDefaults] = useState({ username: 'admin', email: '' });
   const [credMsg, setCredMsg] = useState<string | null>(null);
   const [credBusy, setCredBusy] = useState(false);
+  const [companyMsg, setCompanyMsg] = useState<string | null>(null);
+  const [companyBusy, setCompanyBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCompanyProfile() {
+      try {
+        const response = await authFetch(`${API_BASE}/api/settings/company`);
+        if (!response.ok) {
+          if (active) {
+            setCompanyMsg(await readErrorMessage(response));
+          }
+          return;
+        }
+
+        const data = await response.json();
+        if (!active) {
+          return;
+        }
+
+        setCompany({
+          name: data.name || 'ProBuild App',
+          address: data.address || '',
+          contact: data.contact || '',
+          email: data.email || '',
+        });
+      } catch {
+        if (active) {
+          setCompanyMsg('Unable to load company profile');
+        }
+      }
+    }
+
+    async function loadAdminAccount() {
+      try {
+        const response = await authFetch(`${API_BASE}/api/admin/account`);
+        if (!response.ok) {
+          if (active) {
+            setCredMsg(await readErrorMessage(response));
+          }
+          return;
+        }
+
+        const data = await response.json();
+        if (!active) {
+          return;
+        }
+
+        setAdminCreds((current) => ({
+          ...current,
+          username: data.username || 'admin',
+          email: data.email || '',
+        }));
+        setAdminDefaults({
+          username: data.username || 'admin',
+          email: data.email || '',
+        });
+      } catch {
+        if (active) {
+          setCredMsg('Unable to load account settings');
+        }
+      }
+    }
+
+    void loadCompanyProfile();
+    void loadAdminAccount();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function readErrorMessage(response: Response) {
     try {
@@ -96,6 +169,11 @@ export default function Settings() {
 
   async function handleSaveCredentials() {
     setCredMsg(null);
+    if (!adminCreds.email.trim()) {
+      setCredMsg('Recovery Gmail is required');
+      return;
+    }
+
     if (adminCreds.password !== adminCreds.confirm) {
       setCredMsg('Passwords do not match');
       return;
@@ -106,11 +184,16 @@ export default function Settings() {
       const response = await authFetch(`${API_BASE}/api/admin/credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: adminCreds.username, password: adminCreds.password }),
+        body: JSON.stringify({
+          username: adminCreds.username,
+          email: adminCreds.email,
+          password: adminCreds.password || undefined,
+        }),
       });
 
       if (response.ok) {
-        setCredMsg('Credentials updated');
+        setCredMsg('Account settings updated');
+        setAdminDefaults({ username: adminCreds.username, email: adminCreds.email });
         setAdminCreds((current) => ({ ...current, password: '', confirm: '' }));
       } else {
         setCredMsg(await readErrorMessage(response));
@@ -119,6 +202,28 @@ export default function Settings() {
       setCredMsg('Network error');
     } finally {
       setCredBusy(false);
+    }
+  }
+
+  async function handleSaveCompany() {
+    setCompanyMsg(null);
+    setCompanyBusy(true);
+    try {
+      const response = await authFetch(`${API_BASE}/api/settings/company`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(company),
+      });
+
+      if (response.ok) {
+        setCompanyMsg('Company profile updated');
+      } else {
+        setCompanyMsg(await readErrorMessage(response));
+      }
+    } catch {
+      setCompanyMsg('Network error');
+    } finally {
+      setCompanyBusy(false);
     }
   }
 
@@ -167,8 +272,11 @@ export default function Settings() {
                 </div>
 
                 <div className="actions">
-                  <button className="btn btn-primary">Save Changes</button>
+                  <button className="btn btn-primary" type="button" onClick={handleSaveCompany} disabled={companyBusy}>
+                    {companyBusy ? 'Saving...' : 'Save Changes'}
+                  </button>
                 </div>
+                {companyMsg && <div className="muted" style={{marginTop:8}}>{companyMsg}</div>}
               </div>
             </div>
           )}
@@ -180,6 +288,9 @@ export default function Settings() {
                 <label>Username
                   <input value={adminCreds.username} onChange={e=>setAdminCreds({...adminCreds, username: e.target.value})} />
                 </label>
+                <label>Recovery Gmail
+                  <input type="email" value={adminCreds.email} onChange={e=>setAdminCreds({...adminCreds, email: e.target.value})} placeholder="yourname@gmail.com" />
+                </label>
                 <label>New Password
                   <input type="password" value={adminCreds.password} onChange={e=>setAdminCreds({...adminCreds, password: e.target.value})} />
                 </label>
@@ -187,9 +298,18 @@ export default function Settings() {
                   <input type="password" value={adminCreds.confirm} onChange={e=>setAdminCreds({...adminCreds, confirm: e.target.value})} />
                 </label>
                 <div className="settings-actions">
-                  <button className="btn btn-secondary" type="button" onClick={()=>{ setAdminCreds({username:'admin', password:'', confirm:''}); setCredMsg(null);}}>Reset</button>
+                  <button className="btn btn-secondary" type="button" onClick={()=>{
+                    setAdminCreds({
+                      username: adminDefaults.username,
+                      email: adminDefaults.email,
+                      password: '',
+                      confirm: '',
+                    });
+                    setCredMsg(null);
+                  }}>Reset</button>
                   <button className="btn btn-primary" type="button" onClick={handleSaveCredentials} disabled={credBusy}>{credBusy ? 'Saving...' : 'Save Credentials'}</button>
                 </div>
+                <div className="muted" style={{marginTop:8}}>The Gmail saved here will receive username reminders and password reset codes.</div>
                 {credMsg && <div className="muted" style={{marginTop:8}}>{credMsg}</div>}
               </div>
             </div>

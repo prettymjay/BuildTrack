@@ -1,51 +1,50 @@
-/* Settings page styles */
-.settings-root{padding:28px 40px;max-width:1440px;margin:0 auto}
-.settings-header{margin-bottom:18px}
-.settings-header h1{margin:0;font-size:32px;font-weight:800;letter-spacing:-0.03em}
-.settings-sub{color:var(--muted);margin-top:8px;font-size:16px;max-width:900px;line-height:1.5}
-.settings-card{margin-top:18px;padding:0;border-radius:16px;overflow:hidden}
-.tabs{display:flex;border-bottom:1px solid var(--border);background:#fff;gap:0}
-.tab{padding:16px 22px;border:0;background:transparent;cursor:pointer;color:var(--muted);font-weight:700;font-size:14px;position:relative}
+.settings-root{padding:32px 42px 40px;max-width:1480px;margin:0 auto}
+.settings-header{margin-bottom:22px}
+.settings-header h1{margin:0;font-size:2.75rem;font-weight:800;letter-spacing:-0.05em;font-family:var(--font-heading);line-height:0.98}
+.settings-sub{color:var(--muted);margin-top:10px;font-size:1.02rem;max-width:900px;line-height:1.7}
+.settings-card{margin-top:18px;padding:0;border-radius:24px;overflow:hidden;box-shadow:0 24px 44px rgba(15,23,42,0.06);border:1px solid rgba(15,23,42,0.08)}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.98);gap:0}
+.tab{padding:18px 22px;border:0;background:transparent;cursor:pointer;color:var(--muted);font-weight:700;font-size:14px;position:relative}
 .tab.active{color:var(--text);background:linear-gradient(90deg,rgba(249,115,22,0.06),transparent)}
 .tab.active::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--accent)}
 
-.profile-grid{display:grid;grid-template-columns:minmax(300px,360px) 1fr;gap:28px;padding:28px}
+.profile-grid{display:grid;grid-template-columns:minmax(300px,360px) 1fr;gap:30px;padding:30px}
 .branding{padding:6px 4px 6px 0}
-.branding-title{font-weight:800;font-size:18px;margin-bottom:8px}
-.branding-sub{color:var(--muted);font-size:13px;margin-bottom:16px;line-height:1.5}
-.upload-box{border:2px dashed var(--border);border-radius:14px;min-height:220px;display:flex;align-items:center;justify-content:center;flex-direction:column;background:linear-gradient(180deg,#fbfbfb,#fff);padding:24px;text-align:center}
+.branding-title{font-weight:800;font-size:1.2rem;margin-bottom:8px}
+.branding-sub{color:var(--muted);font-size:13px;margin-bottom:18px;line-height:1.6}
+.upload-box{border:2px dashed rgba(15,23,42,0.12);border-radius:20px;min-height:220px;display:flex;align-items:center;justify-content:center;flex-direction:column;background:linear-gradient(180deg,#fbfbfb,#fff);padding:24px;text-align:center}
 .upload-icon{font-size:28px;margin-bottom:10px}
-.upload-text{font-size:13px;color:var(--muted);text-align:center;line-height:1.5}
+.upload-text{font-size:13px;color:var(--muted);text-align:center;line-height:1.6}
 
 .company-form{padding:0 4px}
 .company-form label{display:flex;flex-direction:column;margin-bottom:16px;font-size:13px;gap:8px}
-.company-form input, .company-form textarea{padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:14px}
+.company-form input,.company-form textarea{padding:13px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;font-size:14px}
 .company-form textarea{resize:vertical;min-height:120px}
 .company-form .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .company-form .row label{margin-bottom:0}
 .actions{display:flex;justify-content:flex-end;margin-top:10px}
 .settings-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px;flex-wrap:wrap}
-.btn-primary{background:var(--accent);color:var(--on-accent);padding:10px 14px;border-radius:10px;border:none;font-weight:700}
-.btn-secondary{background:transparent;border:1px solid var(--border);padding:10px 14px;border-radius:10px}
+.btn-primary{background:linear-gradient(135deg, #f97316 0%, #ea6a10 100%);color:var(--on-accent);padding:12px 16px;border-radius:16px;border:none;font-weight:800;box-shadow:0 18px 32px rgba(249,115,22,0.18)}
+.btn-secondary{background:#fff;border:1px solid var(--border);padding:12px 16px;border-radius:16px;font-weight:700}
 
-.users-panel,.security-panel{padding:28px}
-.users-panel h3,.security-panel h3{margin:0 0 18px;font-size:22px}
+.users-panel,.security-panel{padding:30px}
+.users-panel h3,.security-panel h3{margin:0 0 18px;font-size:1.45rem}
 .admin-form{max-width:760px}
 .admin-form label{display:flex;flex-direction:column;margin-bottom:14px;gap:8px}
-.admin-form input{padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:14px}
+.admin-form input{padding:13px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;font-size:14px}
 
-.backup-box{padding:20px;border:1px solid var(--border);border-radius:14px;background:#fff;display:flex;flex-direction:column;gap:18px}
+.backup-box{padding:22px;border:1px solid var(--border);border-radius:20px;background:#fff;display:flex;flex-direction:column;gap:18px}
 .backup-copy{display:flex;flex-direction:column;gap:6px}
 .backup-title{font-weight:700;font-size:16px;line-height:1.5}
 .backup-sub{font-size:13px;line-height:1.5}
 .backup-actions{display:flex;gap:12px;flex-wrap:wrap}
-.backup-actions .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#fff;font-weight:700}
+.backup-actions .btn{padding:12px 16px;border-radius:16px;border:1px solid var(--border);background:#fff;font-weight:700}
 .backup-actions .btn:disabled,.btn-primary:disabled{opacity:.65;cursor:not-allowed}
 
 .settings-foot{margin-top:22px;font-size:12px;letter-spacing:.08em}
 
 @media (max-width:900px){
-  .settings-root{padding:16px}
+  .settings-root{padding:18px}
   .profile-grid{grid-template-columns:1fr;padding:20px}
   .upload-box{min-height:180px}
   .company-form .row{grid-template-columns:1fr}

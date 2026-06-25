@@ -1,56 +1,29 @@
+@import './styles/design-tokens.css';
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --text: var(--color-text);
+  --text-h: #162235;
+  --bg: var(--color-bg);
+  --border: var(--color-border);
+  --code-bg: #eef3f8;
+  --accent: var(--color-accent);
+  --accent-bg: rgba(249, 115, 22, 0.12);
+  --accent-border: rgba(249, 115, 22, 0.28);
+  --social-bg: rgba(226, 232, 240, 0.65);
+  --shadow: var(--shadow-md);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --sans: var(--font-sans);
+  --heading: var(--font-heading);
+  --mono: var(--font-mono);
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  font: 16px/155% var(--sans);
+  letter-spacing: 0.01em;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@import './styles/design-tokens.css';
-
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
 }
 
 #root {
@@ -68,33 +41,29 @@
 
 body {
   margin: 0;
-  background: #f4f7fb; /* page background matches dashboard */
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top right, rgba(251, 146, 60, 0.10), transparent 22%),
+    linear-gradient(180deg, #f7f9fc 0%, #eef4fa 100%);
 }
 
 h1,
 h2 {
   font-family: var(--heading);
-  font-weight: 500;
+  font-weight: 800;
   color: var(--text-h);
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+  font-size: 52px;
+  letter-spacing: -0.05em;
+  margin: 24px 0;
 }
 h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
   margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
 }
 p {
   margin: 0;
@@ -113,6 +82,21 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+@media (max-width: 1024px) {
+  :root {
+    font-size: 15px;
+  }
+
+  h1 {
+    font-size: 36px;
+    margin: 18px 0;
+  }
+
+  h2 {
+    font-size: 24px;
+  }
 }
 
 .input-hint {

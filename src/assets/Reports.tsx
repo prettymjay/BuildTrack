@@ -1,24 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import './Reports.css';
 import { formatPesoValue } from '../utils/formatCurrency';
+import { authFetch } from '../services/auth';
 
 type ReportRow = {
+  id: number;
   date: string;
   ref: string;
   project: string;
   category: string;
   amount: number;
   status: string;
+  description: string;
 };
 
-const sampleRows: ReportRow[] = [
-  { date: '2023-11-24', ref: 'INV-98241', project: 'Highrise Plaza A - Foundation', category: 'Materials', amount: 2445000, status: 'VERIFIED' },
-  { date: '2023-11-23', ref: 'LB-4420', project: 'Harbor Bridge Refurb', category: 'Labor', amount: 820000, status: 'VERIFIED' },
-  { date: '2023-11-22', ref: 'EXP-5012', project: 'Skyline Apartments', category: 'Equipment', amount: 1215000, status: 'PENDING' },
-  { date: '2023-11-21', ref: 'INV-98239', project: 'Highrise Plaza A - Electrical', category: 'Materials', amount: 482000, status: 'VERIFIED' },
-  { date: '2023-11-20', ref: 'LB-4418', project: 'Harbor Bridge Refurb', category: 'Labor', amount: 1540000, status: 'DISPUTED' },
-];
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
 
 const periodLabels = {
   daily: 'Daily',
@@ -52,45 +49,87 @@ function escapeHtml(value: string) {
   });
 }
 
+function withinPeriod(date: string, period: keyof typeof periodLabels) {
+  if (!date) return false;
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return false;
+  const now = new Date();
+  const diffDays = (now.getTime() - value.getTime()) / (1000 * 60 * 60 * 24);
+  if (period === 'daily') return diffDays <= 1;
+  if (period === 'weekly') return diffDays <= 7;
+  if (period === 'monthly') return value.getMonth() === now.getMonth() && value.getFullYear() === now.getFullYear();
+  const currentQuarter = Math.floor(now.getMonth() / 3);
+  const valueQuarter = Math.floor(value.getMonth() / 3);
+  return valueQuarter === currentQuarter && value.getFullYear() === now.getFullYear();
+}
+
 function Reports() {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('monthly');
   const [project, setProject] = useState('All Active Projects');
   const [category, setCategory] = useState('All Categories');
   const [query, setQuery] = useState('');
+  const [rows, setRows] = useState<ReportRow[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null);
+
+  useEffect(() => {
+    void loadReports();
+  }, []);
+
+  async function loadReports() {
+    try {
+      const response = await authFetch(`${API_BASE}/api/expenses?page=1&perPage=500`);
+      const json = await response.json();
+      const mapped = (json.data || []).map((row: any) => ({
+        id: row.id,
+        date: row.date || '',
+        ref: `EXP-${String(row.id).padStart(4, '0')}`,
+        project: row.project || 'Unassigned',
+        category: row.category || 'Other',
+        amount: Number(row.amount || 0) / 100,
+        status: row.status || 'Recorded',
+        description: row.description || '',
+      }));
+      setRows(mapped);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return sampleRows.filter((row) => {
+    return rows.filter((row) => {
       const matchesQuery =
         !normalizedQuery ||
-        [row.date, row.ref, row.project, row.category, row.status]
+        [row.date, row.ref, row.project, row.category, row.status, row.description]
           .join(' ')
           .toLowerCase()
           .includes(normalizedQuery);
       const matchesProject = project === 'All Active Projects' || row.project === project;
       const matchesCategory = category === 'All Categories' || row.category === category;
-      return matchesQuery && matchesProject && matchesCategory;
+      return matchesQuery && matchesProject && matchesCategory && withinPeriod(row.date, period);
     });
-  }, [category, project, query]);
+  }, [category, period, project, query, rows]);
+
+  const projectOptions = useMemo(() => ['All Active Projects', ...Array.from(new Set(rows.map((row) => row.project))).sort()], [rows]);
+  const categoryOptions = useMemo(() => ['All Categories', ...Array.from(new Set(rows.map((row) => row.category))).sort()], [rows]);
 
   const categoryTotals = useMemo(() => {
-    return {
-      Materials: filteredRows.filter((row) => row.category === 'Materials').reduce((sum, row) => sum + row.amount, 0),
-      Labor: filteredRows.filter((row) => row.category === 'Labor').reduce((sum, row) => sum + row.amount, 0),
-      Equipment: filteredRows.filter((row) => row.category === 'Equipment').reduce((sum, row) => sum + row.amount, 0),
-    };
+    return filteredRows.reduce<Record<string, number>>((acc, row) => {
+      acc[row.category] = (acc[row.category] || 0) + row.amount;
+      return acc;
+    }, {});
   }, [filteredRows]);
 
   const periodTotals = useMemo(() => {
     const total = filteredRows.reduce((sum, row) => sum + row.amount, 0);
-    const materials = categoryTotals.Materials;
-    const dailyExpenses = categoryTotals.Labor + categoryTotals.Equipment;
-    return { total, materials, dailyExpenses };
+    const labor = categoryTotals.Labor || 0;
+    const logistics = (categoryTotals.Transportation || 0) + (categoryTotals.Fuel || 0);
+    const remaining = total - labor - logistics;
+    return { total, labor, logistics, remaining };
   }, [categoryTotals, filteredRows]);
 
   function handleDownloadAll() {
-    const header = ['Date', 'Reference', 'Project', 'Category', 'Amount', 'Status'];
+    const header = ['Date', 'Reference', 'Project', 'Category', 'Amount', 'Status', 'Description'];
     const lines = filteredRows.map((row) => [
       row.date,
       row.ref,
@@ -98,14 +137,15 @@ function Reports() {
       row.category,
       row.amount.toFixed(2),
       row.status,
+      row.description,
     ].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','));
     downloadText(`buildtrack-reports-${period}.csv`, [header.join(','), ...lines].join('\n'));
   }
 
   function handleDownloadRow(row: ReportRow) {
     const csv = [
-      ['Date', 'Reference', 'Project', 'Category', 'Amount', 'Status'].join(','),
-      [row.date, row.ref, row.project, row.category, row.amount.toFixed(2), row.status]
+      ['Date', 'Reference', 'Project', 'Category', 'Amount', 'Status', 'Description'].join(','),
+      [row.date, row.ref, row.project, row.category, row.amount.toFixed(2), row.status, row.description]
         .map((value) => `"${String(value).replace(/"/g, '""')}"`)
         .join(','),
     ].join('\n');
@@ -139,6 +179,7 @@ function Reports() {
             <div class="row"><span class="label">Category</span><strong>${escapeHtml(selectedReport.category)}</strong></div>
             <div class="row"><span class="label">Amount</span><strong>${escapeHtml(formatPesoValue(selectedReport.amount))}</strong></div>
             <div class="row"><span class="label">Status</span><strong>${escapeHtml(selectedReport.status)}</strong></div>
+            <div class="row"><span class="label">Description</span><strong>${escapeHtml(selectedReport.description || '-')}</strong></div>
           </div>
         </body>
       </html>
@@ -165,7 +206,7 @@ function Reports() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
-              <button className="icon-btn small" type="button" aria-label="Search reports">🔍</button>
+              <button className="icon-btn small" type="button" aria-label="Search reports">Search</button>
             </div>
             <button className="btn add-primary" type="button" onClick={handleDownloadAll}>Download CSV</button>
           </div>
@@ -179,52 +220,46 @@ function Reports() {
             <option value="quarterly">Quarterly</option>
           </select>
           <select className="filter" value={project} onChange={(event) => setProject(event.target.value)}>
-            <option>All Active Projects</option>
-            <option>Highrise Plaza A - Foundation</option>
-            <option>Harbor Bridge Refurb</option>
-            <option>Skyline Apartments</option>
+            {projectOptions.map((option) => <option key={option}>{option}</option>)}
           </select>
           <select className="filter" value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option>All Categories</option>
-            <option>Materials</option>
-            <option>Labor</option>
-            <option>Equipment</option>
+            {categoryOptions.map((option) => <option key={option}>{option}</option>)}
           </select>
-          <button className="btn apply" type="button">Apply Filters</button>
+          <button className="btn apply" type="button" onClick={loadReports}>Refresh Data</button>
         </div>
 
         <div className="summary-cards">
           <div className="card stat">
-            <div className="label">TOTAL MATERIALS COST</div>
-            <div className="value">{formatPesoValue(periodTotals.materials)}</div>
-            <div className="delta">+12%</div>
+            <div className="label">TOTAL LABOR COST</div>
+            <div className="value">{formatPesoValue(periodTotals.labor)}</div>
+            <div className="delta">Filtered period</div>
           </div>
           <div className="card stat">
-            <div className="label">TOTAL {periodLabels[period].toUpperCase()} EXPENSES</div>
-            <div className="value">{formatPesoValue(periodTotals.dailyExpenses)}</div>
-            <div className="delta">-4%</div>
+            <div className="label">TRANSPORT + FUEL</div>
+            <div className="value">{formatPesoValue(periodTotals.logistics)}</div>
+            <div className="delta">{filteredRows.length} records</div>
           </div>
           <div className="card stat highlight">
             <div className="label">GRAND TOTAL (SELECTED PERIOD)</div>
             <div className="value large">{formatPesoValue(periodTotals.total)}</div>
-            <div className="badge">BUDGET SAFE</div>
+            <div className="badge">{formatPesoValue(periodTotals.remaining)} other costs</div>
           </div>
         </div>
 
         <div className="charts-row">
           <div className="chart card">
             <div className="card-title">{periodLabels[period]} Expense Trends</div>
-            <div className="chart-placeholder">[ chart ]</div>
+            <div className="chart-placeholder">{filteredRows.length === 0 ? 'No report data yet' : `${filteredRows.length} records in this view`}</div>
           </div>
           <div className="card small-right">
             <div className="card-title">Allocation by Category</div>
             <div className="alloc-placeholder">
-              62%
-              <div className="muted">Materials</div>
+              {Object.keys(categoryTotals).length === 0 ? '0%' : 'Live'}
+              <div className="muted">Category totals</div>
               <div className="alloc-list">
-                <div>Materials <span>{formatPesoValue(categoryTotals.Materials)}</span></div>
-                <div>Labor <span>{formatPesoValue(categoryTotals.Labor)}</span></div>
-                <div>Equipment <span>{formatPesoValue(categoryTotals.Equipment)}</span></div>
+                {Object.entries(categoryTotals).map(([name, amount]) => (
+                  <div key={name}>{name} <span>{formatPesoValue(amount)}</span></div>
+                ))}
               </div>
             </div>
           </div>
@@ -248,14 +283,16 @@ function Reports() {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {filteredRows.length === 0 ? (
+                <tr><td colSpan={7}>No reports available for the selected filters.</td></tr>
+              ) : filteredRows.map((row) => (
                 <tr key={row.ref}>
                   <td>{row.date}</td>
                   <td className="mono">{row.ref}</td>
                   <td>{row.project}</td>
                   <td><span className="tag small">{row.category}</span></td>
                   <td className="text-right">{formatPesoValue(row.amount)}</td>
-                  <td><span className={`status ${row.status.toLowerCase()}`}>{row.status}</span></td>
+                  <td><span className={`status ${row.status.toLowerCase().replace(/\s+/g, '-')}`}>{row.status}</span></td>
                   <td className="row-actions">
                     <button type="button" className="row-btn" onClick={() => setSelectedReport(row)}>View</button>
                     <button type="button" className="row-btn secondary" onClick={() => handleDownloadRow(row)}>Download</button>
@@ -275,7 +312,7 @@ function Reports() {
                   <div className="report-modal-kicker">Report Preview</div>
                   <h2>{selectedReport.ref}</h2>
                 </div>
-                <button className="close-report" type="button" onClick={() => setSelectedReport(null)}>×</button>
+                <button className="close-report" type="button" onClick={() => setSelectedReport(null)}>X</button>
               </div>
               <div className="report-modal-grid">
                 <div><span>Date</span><strong>{selectedReport.date}</strong></div>
@@ -292,7 +329,6 @@ function Reports() {
             </div>
           </div>
         )}
-
       </main>
     </>
   );
