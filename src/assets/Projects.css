@@ -37,6 +37,15 @@
 .add-btn{background:linear-gradient(180deg,var(--accent-2),var(--accent));color:var(--on-accent);padding:0 20px;border-radius:14px;font-weight:800;border:none;box-shadow:0 14px 30px rgba(249,115,22,0.16);font-size:14px}
 
 /* Grid + cards */
+.projects-content-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start;margin-top:28px}
+.projects-primary-column{min-width:0}
+.projects-sticky-rail{position:sticky;top:24px}
+.project-create-card{padding:24px;border-radius:20px;border:1px solid rgba(217,227,238,0.9);box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:14px;background:
+linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,247,237,0.98))}
+.project-create-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.project-create-title{margin:0;font-size:24px;font-family:var(--font-heading);font-weight:800;letter-spacing:-0.04em;line-height:1.08}
+.project-create-copy{margin:0;color:var(--muted);font-size:14px;line-height:1.7}
+.project-create-btn{align-self:flex-start;margin-top:4px}
 .project-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-bottom:30px}
 .project-card{background:var(--card-bg);padding:26px;border-radius:18px;border:1px solid rgba(217,227,238,0.9);box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:18px}
 .projects-empty{padding:30px;border-radius:20px;border:1px dashed rgba(217,227,238,0.95);display:flex;flex-direction:column;align-items:flex-start;gap:12px;max-width:620px}
@@ -57,8 +66,55 @@
 .card-cost-block{min-width:0;display:flex;flex-direction:column;gap:8px;width:100%}
 .card-cost-block .small{font-size:11px;letter-spacing:.1em;text-transform:uppercase;display:block;line-height:1.35}
 .cost{font-size:clamp(1.8rem,1.85vw,2.18rem);font-weight:800;line-height:1.04;letter-spacing:-0.03em;overflow-wrap:anywhere}
-.card-action-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-start;align-items:center;width:100%}
-.card-action-row .btn{min-width:88px;min-height:38px;padding:0 14px;border-radius:12px;font-size:13px;line-height:1.1}
+.card-action-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center;width:100%}
+.card-action-row .btn{
+  min-width:110px;
+  min-height:42px;
+  padding:0 18px;
+  border-radius:14px;
+  font-size:13px;
+  line-height:1.1;
+  font-weight:800;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease, background-color .16s ease, color .16s ease;
+}
+.card-action-row .btn:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(249,115,22,0.16);
+}
+.card-action-row .btn.btn-secondary{
+  background:linear-gradient(180deg,#ffffff,#f8fafc);
+  border:1px solid rgba(148,163,184,0.28);
+  color:var(--text);
+  box-shadow:0 10px 24px rgba(15,23,42,0.07);
+}
+.card-action-row .btn.btn-secondary:hover{
+  transform:translateY(-2px);
+  border-color:rgba(249,115,22,0.34);
+  box-shadow:0 14px 28px rgba(249,115,22,0.14);
+}
+.card-action-row .btn.btn-secondary:active{
+  transform:translateY(0) scale(.98);
+  box-shadow:0 6px 16px rgba(15,23,42,0.1);
+}
+.card-action-row .btn.btn-danger{
+  background:linear-gradient(180deg,#fff5f5,#ffe8e8);
+  border:1px solid rgba(239,68,68,0.22);
+  color:#b42318;
+  box-shadow:0 10px 24px rgba(239,68,68,0.1);
+}
+.card-action-row .btn.btn-danger:hover{
+  transform:translateY(-2px);
+  background:linear-gradient(180deg,#fff1f1,#ffdada);
+  border-color:rgba(239,68,68,0.34);
+  box-shadow:0 14px 30px rgba(239,68,68,0.16);
+}
+.card-action-row .btn.btn-danger:active{
+  transform:translateY(0) scale(.98);
+  box-shadow:0 6px 16px rgba(239,68,68,0.12);
+}
 .card-arrow{color:var(--muted);font-size:20px}
 
 /* Stats row */
@@ -81,6 +137,8 @@
 @media (max-width:1100px){
   .projects-header{grid-template-columns:1fr 1fr}
   .header-center .search.input{width:420px;max-width:520px}
+  .projects-content-layout{grid-template-columns:1fr}
+  .projects-sticky-rail{position:static}
   .project-cards{grid-template-columns:repeat(2,1fr)}
   .stats-row{flex-wrap:wrap}
   .resource-card{flex:1 1 100%}
@@ -88,6 +146,7 @@
 @media (max-width:720px){
   .projects-header{grid-template-columns:1fr}
   .header-center{order:3;margin-top:12px}
+  .projects-content-layout{gap:18px}
   .project-cards{grid-template-columns:1fr}
   .card-action-row .btn{flex:1 1 120px}
 }

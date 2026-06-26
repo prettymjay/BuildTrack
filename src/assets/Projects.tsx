@@ -281,46 +281,61 @@ export default function Projects() {
             </div>
           </div>
 
-          {loading ? <div className="muted">Loading...</div> : projects.length === 0 ? (
-            <div className="projects-empty card">
-              <div className="projects-empty-kicker">No Projects Yet</div>
-              <h3 className="projects-empty-title">Create your first project</h3>
-              <p className="projects-empty-copy">
-                Add a project name, location, budget, schedule, and status so your team can start tracking progress.
-              </p>
-              <button className="btn add-btn" type="button" onClick={openAddProject}>Add Project</button>
+          <section className="projects-content-layout">
+            <div className="projects-primary-column">
+              {loading ? <div className="muted">Loading...</div> : projects.length === 0 ? (
+                <div className="projects-empty card">
+                  <div className="projects-empty-kicker">No Projects Yet</div>
+                  <h3 className="projects-empty-title">Create your first project</h3>
+                  <p className="projects-empty-copy">
+                    Add a project name, location, budget, schedule, and status so your team can start tracking progress.
+                  </p>
+                  <button className="btn add-btn" type="button" onClick={openAddProject}>Add Project</button>
+                </div>
+              ) : (
+                <section className={view === 'grid' ? 'project-cards' : 'project-list'}>
+                  {projects.map((project) => (
+                    <article className={`project-card card ${view}`} key={project.id}>
+                      <div className="card-top">
+                        <div className="icon-box">Site</div>
+                        <div className={`status-tag ${String(project.status).replace(/\s+/g, '-')}`}>{project.status}</div>
+                      </div>
+                      <h3 className="proj-title">{project.title}</h3>
+                      <div className="proj-loc muted">{project.location || 'No location yet'}</div>
+                      <div className="progress-row">
+                        <div className="progress-label">Construction Progress</div>
+                        <div className="progress-pct">{project.progress}%</div>
+                      </div>
+                      <div className="progress"><div className="bar" style={{ width: `${project.progress}%` }} /></div>
+                      <div className="dates muted">START: {formatProjectDate(project.start_date)} <span className="sep">TARGET: {formatProjectDate(project.target_date)}</span></div>
+                      <div className="card-bottom">
+                        <div className="card-cost-block">
+                          <div className="muted small">CURRENT COST</div>
+                          <div className="cost text-bold">{formatPesoValue(project.cost || 0)}</div>
+                        </div>
+                        <div className="card-action-row">
+                          <button className="btn btn-secondary" onClick={() => setSelectedProject(project)} type="button">View</button>
+                          <button className="btn btn-secondary" onClick={() => openEdit(project)} type="button">Edit</button>
+                          <button className="btn btn-danger" onClick={() => handleDelete(project.id)} type="button">Delete</button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </section>
+              )}
             </div>
-          ) : (
-            <section className={view === 'grid' ? 'project-cards' : 'project-list'}>
-              {projects.map((project) => (
-                <article className={`project-card card ${view}`} key={project.id}>
-                  <div className="card-top">
-                    <div className="icon-box">Site</div>
-                    <div className={`status-tag ${String(project.status).replace(/\s+/g, '-')}`}>{project.status}</div>
-                  </div>
-                  <h3 className="proj-title">{project.title}</h3>
-                  <div className="proj-loc muted">{project.location || 'No location yet'}</div>
-                  <div className="progress-row">
-                    <div className="progress-label">Construction Progress</div>
-                    <div className="progress-pct">{project.progress}%</div>
-                  </div>
-                  <div className="progress"><div className="bar" style={{ width: `${project.progress}%` }} /></div>
-                  <div className="dates muted">START: {formatProjectDate(project.start_date)} <span className="sep">TARGET: {formatProjectDate(project.target_date)}</span></div>
-                  <div className="card-bottom">
-                    <div className="card-cost-block">
-                      <div className="muted small">CURRENT COST</div>
-                      <div className="cost text-bold">{formatPesoValue(project.cost || 0)}</div>
-                    </div>
-                    <div className="card-action-row">
-                      <button className="btn btn-secondary" onClick={() => setSelectedProject(project)} type="button">View</button>
-                      <button className="btn btn-secondary" onClick={() => openEdit(project)} type="button">Edit</button>
-                      <button className="btn btn-danger" onClick={() => handleDelete(project.id)} type="button">Delete</button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </section>
-          )}
+
+            <aside className="projects-sticky-rail">
+              <div className="project-create-card card">
+                <div className="project-create-kicker">Quick Create</div>
+                <h3 className="project-create-title">Always keep a project ready to add</h3>
+                <p className="project-create-copy">
+                  Open the project form anytime to register a new site, budget, target schedule, and starting progress.
+                </p>
+                <button className="btn add-btn project-create-btn" type="button" onClick={openAddProject}>Add Project</button>
+              </div>
+            </aside>
+          </section>
 
           <div style={{ paddingTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
             <div className="pagination">

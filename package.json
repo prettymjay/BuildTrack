@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "start:server": "node server/index.js",
+    "start:offline": "node server/index.js",
     "build": "tsc -b && vite build",
+    "build:offline": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

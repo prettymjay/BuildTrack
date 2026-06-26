@@ -27,11 +27,11 @@ class AuthController extends Controller
             ->first();
 
         if (! $user) {
-            return response()->json(['error' => 'Wrong username or email'], 401);
+            return response()->json(['error' => 'Wrong username or wrong password.'], 401);
         }
 
         if (! Hash::check($data['password'], $user->password)) {
-            return response()->json(['error' => 'Wrong password'], 401);
+            return response()->json(['error' => 'Wrong username or wrong password.'], 401);
         }
 
         $token = Str::random(64);

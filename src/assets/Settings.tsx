@@ -182,12 +182,13 @@ export default function Settings() {
     setBackupStatus(`Uploading ${file.name}...`);
 
     try {
-      const formData = new FormData();
-      formData.append('backup_file', file);
+      const contents = await file.text();
+      const snapshot = JSON.parse(contents);
 
       const response = await authFetch(`${API_BASE}/api/backup/restore`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot }),
       });
 
       if (!response.ok) {
@@ -207,7 +208,7 @@ export default function Settings() {
         window.location.href = '/login';
       }, 1200);
     } catch {
-      setBackupStatus('Unable to restore backup');
+      setBackupStatus('Unable to restore backup. Make sure the file is a valid JSON backup.');
     } finally {
       setBackupBusy(false);
     }
@@ -439,7 +440,7 @@ export default function Settings() {
                   <div className="backup-restore-box">
                     <div className="backup-restore-copy">
                       <div className="backup-title">Restore From Backup</div>
-                      <div className="backup-sub muted">Upload the latest JSON backup to rebuild the app state after a crash or device change.</div>
+                      <div className="backup-sub muted">Upload a JSON backup snapshot to rebuild the app state after a crash or device change.</div>
                     </div>
                     <div className="backup-restore-controls">
                       <label className="backup-upload-field">

@@ -149,7 +149,7 @@ function LogIn() {
           <aside className="recovery-card">
             <div className="recovery-card-top" />
             <div className="reset-title">Account recovery</div>
-            <div className="reset-copy">Enter the Gmail saved in Settings and we&apos;ll email your username and reset code there.</div>
+            <div className="reset-copy">Enter the recovery Gmail saved in Settings and the offline server will generate your username reminder and reset code here.</div>
             <div className="reset-form">
               <input
                 type="email"
